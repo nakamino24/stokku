@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
 import { Profile } from '@/lib/database.types'
+import { toast } from 'sonner'
 
 interface AuthContextType {
   user: User | null
@@ -64,6 +65,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (error) throw error
+
+    // Fallback: Create profile manually if trigger doesn't work
+    if (data.user && !error) {
+      try {
+        // Wait a bit for trigger to potentially work
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Check if profile exists
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', data.user.id)
+          .single()
+        
+        // If no profile exists, create it manually
+        if (!existingProfile) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: data.user.id,
+              email: data.user.email || email,
+              full_name: fullName,
+              role: 'user'
+            })
+          
+          if (profileError) {
+            console.error('Profile creation error:', profileError)
+            // Don't throw error here, let user continue
+          }
+        }
+      } catch (profileError) {
+        console.error('Profile fallback error:', profileError)
+        // Don't throw error, let signup succeed
+      }
+    }
   }
 
   const signOut = async () => {
