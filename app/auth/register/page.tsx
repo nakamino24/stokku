@@ -3,11 +3,14 @@
 import { useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { Package, Mail, Lock, User, ArrowLeft, Shield, CheckCircle, AlertCircle } from 'lucide-react'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
