@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/client';
 import {
+  Database,
   Product,
   Category,
   Transaction,
@@ -27,7 +28,7 @@ export const databaseService = {
     return data;
   },
 
-  async createProduct(newProduct: Product): Promise<void> {
+  async createProduct(newProduct: Partial<Database['public']['Tables']['products']['Insert']>): Promise<void> {
     const { error } = await supabase.from('products').insert([newProduct]);
     if (error) throw error;
   },
@@ -48,7 +49,7 @@ export const databaseService = {
     return data || [];
   },
 
-  async createTransaction(transaction: Transaction): Promise<void> {
+  async createTransaction(transaction: Partial<Database['public']['Tables']['transactions']['Insert']>): Promise<void> {
     const { error } = await supabase.from('transactions').insert([transaction]);
     if (error) throw error;
   },
