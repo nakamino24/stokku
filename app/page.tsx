@@ -123,22 +123,3 @@ export default function LandingPage() {
     </div>
   )
 }
-              Track your products, manage stock levels, and generate reports with ease.
-            </p>
-          </div>
-          <div className="space-y-4">
-            <a 
-              href="/auth/login" 
-              className="w-full inline-flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out"
-            >
-              Get Started
-            </a>
-            <p className="text-sm text-gray-500">
-              New to Stokku? You can create an account during login.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
