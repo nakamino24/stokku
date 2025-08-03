@@ -70,19 +70,19 @@ const sampleProducts = [
   },
 ]
 
-export default function InventoryDashboard() {
-  const [products, setProducts] = useState(sampleProducts)
-  const [currentView, setCurrentView] = useState("all-products")
-
+export default function LandingPage() {
   return (
-    <SidebarProvider defaultOpen={true}>
-      <div className="flex h-screen w-full">
-        <InventorySidebar currentView={currentView} onViewChange={setCurrentView} products={products} />
-        <SidebarInset className="flex flex-col">
-          <InventoryHeader products={products} setProducts={setProducts} />
-          <InventoryContent products={products} setProducts={setProducts} currentView={currentView} />
-        </SidebarInset>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            Welcome to Stokku
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Please <a href="/auth/login" className="text-blue-600 hover:underline">sign in</a> to access your inventory
+          </p>
+        </div>
       </div>
-    </SidebarProvider>
+    </div>
   )
 }
