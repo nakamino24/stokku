@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
+import { useAuth } from '@/contexts/AuthContext'
 import { InventorySidebar } from '@/components/inventory-sidebar'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { InventoryHeader } from '@/components/inventory-header'
 import { InventoryContent } from '@/components/inventory-content'
 import { Button } from '@/components/ui/button'
-import { LogOut } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { LogOut, Shield, User } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Sample inventory data (you can replace this with real data from Supabase)
@@ -75,36 +76,20 @@ const sampleProducts = [
   },
 ]
 
-interface DashboardClientProps {
-  user: any
-  initialProducts: any[]
-  initialCategories: any[]
-  initialTransactions: any[]
-}
-
-export function DashboardClient({ 
-  user, 
-  initialProducts, 
-  initialCategories, 
-  initialTransactions 
-}: DashboardClientProps) {
+export function DashboardClient() {
   const [products, setProducts] = useState(sampleProducts) // Use sample data for now
-  const [currentView, setCurrentView] = useState("all-products")
+  const [currentView, setCurrentView] = useState("dashboard")
+  const { user, profile, signOut } = useAuth()
   const router = useRouter()
-  const supabase = createClient()
 
   const handleLogout = async () => {
     try {
-      const { error } = await supabase.auth.signOut()
-      if (error) {
-        toast.error('Error logging out')
-      } else {
-        toast.success('Logged out successfully')
-        router.push('/')
-        router.refresh()
-      }
-    } catch (error) {
-      toast.error('An unexpected error occurred')
+      await signOut()
+      toast.success('Logged out successfully')
+      router.push('/auth/login')
+      router.refresh()
+    } catch (error: any) {
+      toast.error(error.message || 'Error logging out')
     }
   }
 
@@ -113,10 +98,24 @@ export function DashboardClient({
       <div className="flex h-screen w-full">
         <InventorySidebar currentView={currentView} onViewChange={setCurrentView} products={products} />
         <SidebarInset className="flex flex-col">
-          <div className="flex justify-between items-center p-4 border-b">
-            <div>
-              <h1 className="text-xl font-semibold">Welcome, {user.email}</h1>
-              <p className="text-sm text-gray-600">Manage your inventory</p>
+          <div className="flex justify-between items-center p-4 border-b bg-white">
+            <div className="flex items-center space-x-4">
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Welcome, {profile?.full_name || user?.email}</h1>
+                <div className="flex items-center space-x-2 mt-1">
+                  <p className="text-sm text-gray-600">{user?.email}</p>
+                  <Badge 
+                    variant={profile?.role === 'admin' ? 'default' : 'secondary'}
+                    className={profile?.role === 'admin' ? 'bg-blue-100 text-blue-800' : ''}
+                  >
+                    {profile?.role === 'admin' ? (
+                      <><Shield className="h-3 w-3 mr-1" />Admin</>
+                    ) : (
+                      <><User className="h-3 w-3 mr-1" />User</>
+                    )}
+                  </Badge>
+                </div>
+              </div>
             </div>
             <Button onClick={handleLogout} variant="outline" size="sm">
               <LogOut className="h-4 w-4 mr-2" />

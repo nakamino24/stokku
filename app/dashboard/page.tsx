@@ -1,30 +1,36 @@
-import { createClient } from '@/utils/supabase/server'
-import { cookies } from 'next/headers'
+'use client'
+
+import { useAuth } from '@/contexts/AuthContext'
 import { DashboardClient } from '@/components/dashboard-client'
+import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
+import { toast } from 'sonner'
 
-export default async function DashboardPage() {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+export default function DashboardPage() {
+  const { user, profile, loading } = useAuth()
+  const router = useRouter()
 
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
-    return <div>Please log in to access the dashboard</div>
+  useEffect(() => {
+    // Check for unauthorized access message
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('error') === 'unauthorized') {
+      toast.error('Access denied. Admin privileges required.')
+      router.replace('/dashboard')
+    }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
   }
 
-  // Fetch initial data (you can replace this with actual database queries)
-  // For now, we'll pass empty arrays and let the client handle the data
-  const initialProducts: any[] = []
-  const initialCategories: any[] = []
-  const initialTransactions: any[] = []
+  if (!user || !profile) {
+    router.push('/auth/login')
+    return null
+  }
 
-  return (
-    <DashboardClient 
-      user={user}
-      initialProducts={initialProducts}
-      initialCategories={initialCategories}
-      initialTransactions={initialTransactions}
-    />
-  )
+  return <DashboardClient />
 }

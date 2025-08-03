@@ -17,7 +17,20 @@ export async function middleware(request: NextRequest) {
 
   // if user is not signed in and the current path is not / redirect the user to /
   if (!user && request.nextUrl.pathname !== '/' && !request.nextUrl.pathname.startsWith('/auth')) {
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/auth/login', request.url))
+  }
+
+  // Check for admin routes
+  if (user && request.nextUrl.pathname.startsWith('/admin')) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    
+    if (!profile || profile.role !== 'admin') {
+      return NextResponse.redirect(new URL('/dashboard?error=unauthorized', request.url))
+    }
   }
 
   return response

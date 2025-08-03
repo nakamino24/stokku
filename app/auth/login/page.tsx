@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
+import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -16,59 +16,25 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const { signIn } = useAuth()
   const router = useRouter()
-  const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) {
-        toast.error(error.message)
-      } else {
-        toast.success('Login successful!')
-        router.push('/dashboard')
-        router.refresh()
-      }
-    } catch (error) {
-      toast.error('An unexpected error occurred')
+      await signIn(email, password)
+      toast.success('Login successful!')
+      router.push('/dashboard')
+      router.refresh()
+    } catch (error: any) {
+      toast.error(error.message || 'Login failed')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            role: 'user', // Default role
-          }
-        }
-      })
-
-      if (error) {
-        toast.error(error.message)
-      } else {
-        toast.success('Account created! Please check your email for verification.')
-      }
-    } catch (error) {
-      toast.error('An unexpected error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">

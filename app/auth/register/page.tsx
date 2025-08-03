@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
+import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -15,33 +15,32 @@ import { Package, Mail, Lock, User, ArrowLeft, Shield, CheckCircle, AlertCircle 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
+  const { signUp } = useAuth()
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters long')
+      return
+    }
+    
+    if (!fullName.trim()) {
+      toast.error('Please enter your full name')
+      return
+    }
+    
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            role: 'user',
-          }
-        }
-      })
-
-      if (error) {
-        toast.error(error.message)
-      } else {
-        toast.success('Account created! Please check your email for verification.')
-        router.push('/auth/login')
-      }
-    } catch (error) {
-      toast.error('An unexpected error occurred')
+      await signUp(email, password, fullName)
+      toast.success('Account created! Please check your email for verification.')
+      router.push('/auth/login')
+    } catch (error: any) {
+      toast.error(error.message || 'Registration failed')
     } finally {
       setLoading(false)
     }

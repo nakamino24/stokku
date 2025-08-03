@@ -1,4 +1,5 @@
 "use client"
+import { useState } from "react"
 import { MoreHorizontal, Edit, Trash2, Eye } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +12,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { EditProductDialog } from "@/components/EditProductDialog"
+import { DeleteProductDialog } from "@/components/DeleteProductDialog"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface ProductsTableProps {
   products: any[]
@@ -19,6 +23,24 @@ interface ProductsTableProps {
 }
 
 export function ProductsTable({ products, setProducts, allProducts }: ProductsTableProps) {
+  const { profile } = useAuth()
+  const [editProduct, setEditProduct] = useState<any>(null)
+  const [deleteProductId, setDeleteProductId] = useState<string | null>(null)
+  
+  const handleProductUpdate = () => {
+    // Refresh products - this would typically refetch from the database
+    // For now, we'll just close the dialog
+    setEditProduct(null)
+  }
+  
+  const handleProductDelete = () => {
+    if (deleteProductId) {
+      const updatedProducts = allProducts.filter((p) => p.id !== deleteProductId)
+      setProducts(updatedProducts)
+      setDeleteProductId(null)
+    }
+  }
+  
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "In Stock":
@@ -92,15 +114,21 @@ export function ProductsTable({ products, setProducts, allProducts }: ProductsTa
                       <Eye className="h-4 w-4 mr-2" />
                       View Details
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit Product
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteProduct(product.id)}>
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
+                    {profile?.role === 'admin' && (
+                      <DropdownMenuItem onClick={() => setEditProduct(product)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Product
+                      </DropdownMenuItem>
+                    )}
+                    {profile?.role === 'admin' && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-red-600" onClick={() => setDeleteProductId(product.id)}>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
@@ -108,6 +136,26 @@ export function ProductsTable({ products, setProducts, allProducts }: ProductsTa
           ))}
         </TableBody>
       </Table>
+      
+      {/* Edit Product Dialog */}
+      {editProduct && (
+        <EditProductDialog
+          isOpen={!!editProduct}
+          onClose={() => setEditProduct(null)}
+          product={editProduct}
+          onProductUpdate={handleProductUpdate}
+        />
+      )}
+      
+      {/* Delete Product Dialog */}
+      {deleteProductId && (
+        <DeleteProductDialog
+          isOpen={!!deleteProductId}
+          onClose={() => setDeleteProductId(null)}
+          productId={deleteProductId}
+          onProductDelete={handleProductDelete}
+        />
+      )}
     </div>
   )
 }
