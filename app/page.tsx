@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Package, BarChart3, Users, FileText } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Package, BarChart3, Users, FileText, ArrowRight, CheckCircle, Star, Shield, Zap, TrendingUp } from 'lucide-react'
 
 export default function LandingPage() {
   return (
