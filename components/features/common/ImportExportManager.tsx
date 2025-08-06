@@ -33,14 +33,22 @@ import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 
+// Type augmentation for jsPDF autotable
+
 interface ImportExportProps {
   products: any[]
   onImport: (products: any[]) => void
 }
 
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF
+// Extend jsPDF interface for autoTable
+declare global {
+  namespace jsPDF {
+    interface jsPDF {
+      autoTable: (options: any) => jsPDF
+      lastAutoTable: {
+        finalY: number
+      }
+    }
   }
 }
 
