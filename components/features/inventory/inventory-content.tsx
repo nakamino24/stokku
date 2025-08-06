@@ -4,6 +4,7 @@ import { Product } from "@/types/product.types"
 import { ProductsTable } from "@/components/features/products"
 import { DashboardOverview } from "@/components/features/dashboard"
 import { ReportsView } from "@/components/features/reports"
+import { ImportExportManager } from "@/components/features/common"
 
 interface InventoryContentProps {
   products: Product[];
@@ -11,6 +12,7 @@ interface InventoryContentProps {
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (product: Product) => void;
   onViewProduct: (product: Product) => void;
+  onImport?: (products: Product[]) => void;
 }
 
 export function InventoryContent({
@@ -19,6 +21,7 @@ export function InventoryContent({
   onEditProduct,
   onDeleteProduct,
   onViewProduct,
+  onImport,
 }: InventoryContentProps) {
   const getFilteredProducts = () => {
     switch (currentView) {
@@ -47,6 +50,8 @@ export function InventoryContent({
         return "Stock Movement Report"
       case "supplier-report":
         return "Supplier Report"
+      case "import-data":
+        return "Import & Export"
       default:
         return "Inventory Management"
     }
@@ -72,6 +77,17 @@ export function InventoryContent({
           <p className="text-sm text-gray-600 mt-1">Analyze your inventory data and trends</p>
         </div>
         <ReportsView reportType={currentView} products={products} />
+      </main>
+    )
+  }
+
+  if (currentView === "import-data") {
+    return (
+      <main className="flex-1 overflow-auto p-6">
+        <ImportExportManager 
+          products={products}
+          onImport={onImport || (() => {})}
+        />
       </main>
     )
   }

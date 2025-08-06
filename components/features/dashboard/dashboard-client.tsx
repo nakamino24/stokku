@@ -131,6 +131,12 @@ export function DashboardClient() {
     setIsDetailsOpen(true)
   }
 
+  const handleImportProducts = (importedProducts: Product[]) => {
+    setProducts(prev => [...prev, ...importedProducts])
+    setFilteredProducts(prev => [...prev, ...importedProducts])
+    toast.success(`Successfully imported ${importedProducts.length} products`)
+  }
+
   return (
     <>
       <SidebarProvider defaultOpen={true}>
@@ -175,6 +181,7 @@ export function DashboardClient() {
               onEditProduct={handleEditProduct}
               onDeleteProduct={handleDeleteProduct}
               onViewProduct={handleViewProduct}
+              onImport={handleImportProducts}
             />
           </SidebarInset>
         </div>
