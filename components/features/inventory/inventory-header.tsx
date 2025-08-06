@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { AddProductDialog } from "@/components/add-product-dialog"
+import { AddProductDialog } from "@/components/features/products"
 
 interface InventoryHeaderProps {
   products: any[]
