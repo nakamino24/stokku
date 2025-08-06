@@ -15,7 +15,7 @@ export function DashboardOverview({ products }: DashboardOverviewProps) {
   const lowStock = products.filter((p) => p.status === "Low Stock").length
   const outOfStock = products.filter((p) => p.status === "Out of Stock").length
   const totalValue = products.reduce((sum, p) => sum + p.quantity * p.price, 0)
-  const trendingProduct = products.sort((a, b) => b.quantity - a.quantity)[0];
+  const trendingProduct = products.length > 0 ? products.sort((a, b) => b.quantity - a.quantity)[0] : null;
 
   const recentActivity = products
     .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
@@ -34,10 +34,14 @@ export function DashboardOverview({ products }: DashboardOverviewProps) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {trendingProduct.name} - {trendingProduct.quantity} in stock
+            {trendingProduct ? (
+              `${trendingProduct.name} - ${trendingProduct.quantity} in stock`
+            ) : (
+              "No products available"
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Most stocked item at the moment.
+            {trendingProduct ? "Most stocked item at the moment." : "Add products to see trending items."}
           </p>
         </CardContent>
       </Card>

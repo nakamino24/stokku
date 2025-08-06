@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
+import { DataService } from '@/lib/data-service'
 
 export function LandingPage() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
@@ -36,6 +37,14 @@ export function LandingPage() {
   
   const { signIn, signUp } = useAuth()
   const router = useRouter()
+  
+  // Check if we're in sample data mode
+  const isUsingSupabase = DataService.isUsingSupabase()
+  
+  const handleDemoAccess = () => {
+    toast.success('Entering demo mode with sample data!')
+    router.push('/dashboard')
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -228,6 +237,32 @@ export function LandingPage() {
             </CardContent>
           </Card>
 
+          {/* Demo Mode Button for Sample Data */}
+          {!isUsingSupabase && (
+            <Card className="backdrop-blur-sm bg-amber-50/95 shadow-xl border-2 border-amber-200">
+              <CardHeader className="space-y-1 pb-4">
+                <CardTitle className="text-lg font-semibold text-center text-amber-800">
+                  🚀 Demo Mode Available
+                </CardTitle>
+                <CardDescription className="text-center text-amber-700">
+                  Experience Stokku with sample data - no signup required!
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  onClick={handleDemoAccess}
+                  className="w-full h-12 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  <Package className="mr-2 h-4 w-4" />
+                  Try Demo Now
+                </Button>
+                <p className="text-xs text-amber-600 text-center mt-2">
+                  No registration needed • Sample data included • Full features available
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Security Badge */}
           <div className="flex justify-center">
             <Badge className="bg-green-50 text-green-700 border-green-200 px-3 py-1">
@@ -330,10 +365,16 @@ export function LandingPage() {
             <div className="pt-8">
               <Button 
                 size="lg" 
-                onClick={() => setAuthMode('register')}
+                onClick={() => {
+                  if (isUsingSupabase) {
+                    setAuthMode('register')
+                  } else {
+                    handleDemoAccess()
+                  }
+                }}
                 className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 rounded-lg font-medium group"
               >
-                Get Started Today
+                {isUsingSupabase ? 'Get Started Today' : 'Try Demo Now'}
                 <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Button>
             </div>

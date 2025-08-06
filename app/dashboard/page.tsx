@@ -5,10 +5,14 @@ import { DashboardClient } from '@/components/features/dashboard'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
+import { DataService } from '@/lib/data-service'
 
 export default function DashboardPage() {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
+  
+  // Check if we're using Supabase or sample data mode
+  const isUsingSupabase = DataService.isUsingSupabase()
 
   useEffect(() => {
     // Check for unauthorized access message
@@ -20,13 +24,14 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    // Redirect unauthenticated users
-    if (!loading && (!user || !profile)) {
+    // Only redirect unauthenticated users if using Supabase
+    if (isUsingSupabase && !loading && (!user || !profile)) {
       router.push('/')
     }
-  }, [user, profile, loading, router])
+  }, [user, profile, loading, router, isUsingSupabase])
 
-  if (loading) {
+  // Show loading only if using Supabase and still loading
+  if (isUsingSupabase && loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -34,7 +39,8 @@ export default function DashboardPage() {
     )
   }
 
-  if (!user || !profile) {
+  // Show loading only if using Supabase and no user/profile
+  if (isUsingSupabase && (!user || !profile)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
