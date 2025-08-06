@@ -1,16 +1,25 @@
 "use client"
 
-import { ProductsTable } from "@/components/products-table"
-import { DashboardOverview } from "@/components/dashboard-overview"
-import { ReportsView } from "@/components/reports-view"
+import { Product } from "@/types/product.types"
+import { ProductsTable } from "@/components/features/products"
+import { DashboardOverview } from "@/components/features/dashboard"
+import { ReportsView } from "@/components/features/reports"
 
 interface InventoryContentProps {
-  products: any[]
-  setProducts: (products: any[]) => void
-  currentView: string
+  products: Product[];
+  currentView: string;
+  onEditProduct: (product: Product) => void;
+  onDeleteProduct: (product: Product) => void;
+  onViewProduct: (product: Product) => void;
 }
 
-export function InventoryContent({ products, setProducts, currentView }: InventoryContentProps) {
+export function InventoryContent({
+  products,
+  currentView,
+  onEditProduct,
+  onDeleteProduct,
+  onViewProduct,
+}: InventoryContentProps) {
   const getFilteredProducts = () => {
     switch (currentView) {
       case "low-stock":
@@ -73,7 +82,12 @@ export function InventoryContent({ products, setProducts, currentView }: Invento
         <h1 className="text-2xl font-semibold text-gray-900">{getViewTitle()}</h1>
         <p className="text-sm text-gray-600 mt-1">{getFilteredProducts().length} items</p>
       </div>
-      <ProductsTable products={getFilteredProducts()} setProducts={setProducts} allProducts={products} />
+      <ProductsTable
+        products={getFilteredProducts()}
+        onEdit={onEditProduct}
+        onDelete={onDeleteProduct}
+        onView={onViewProduct}
+      />
     </main>
   )
 }

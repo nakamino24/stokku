@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from '@/contexts/AuthContext'
-import { DashboardClient } from '@/components/dashboard-client'
+import { DashboardClient } from '@/components/features/dashboard'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { toast } from 'sonner'

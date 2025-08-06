@@ -1,4 +1,6 @@
 "use client"
+
+import { Product } from "@/types/product.types"
 import { useState } from "react"
 import { MoreHorizontal, Edit, Trash2, Eye } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -12,35 +14,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { EditProductDialog } from "@/components/EditProductDialog"
-import { DeleteProductDialog } from "@/components/DeleteProductDialog"
+import { EditProductDialog } from "./EditProductDialog"
+import { DeleteProductDialog } from "./DeleteProductDialog"
 import { useAuth } from "@/contexts/AuthContext"
 
 interface ProductsTableProps {
-  products: any[]
-  setProducts: (products: any[]) => void
-  allProducts: any[]
+  products: Product[]
+  onEdit: (product: Product) => void
+  onDelete: (product: Product) => void
+  onView: (product: Product) => void
 }
 
-export function ProductsTable({ products, setProducts, allProducts }: ProductsTableProps) {
+export function ProductsTable({ products, onEdit, onDelete, onView }: ProductsTableProps) {
   const { profile } = useAuth()
-  const [editProduct, setEditProduct] = useState<any>(null)
-  const [deleteProductId, setDeleteProductId] = useState<string | null>(null)
-  
-  const handleProductUpdate = () => {
-    // Refresh products - this would typically refetch from the database
-    // For now, we'll just close the dialog
-    setEditProduct(null)
-  }
-  
-  const handleProductDelete = () => {
-    if (deleteProductId) {
-      const updatedProducts = allProducts.filter((p) => p.id !== deleteProductId)
-      setProducts(updatedProducts)
-      setDeleteProductId(null)
-    }
-  }
-  
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "In Stock":
@@ -60,11 +47,6 @@ export function ProductsTable({ products, setProducts, allProducts }: ProductsTa
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
-  }
-
-  const handleDeleteProduct = (productId: string) => {
-    const updatedProducts = allProducts.filter((p) => p.id !== productId)
-    setProducts(updatedProducts)
   }
 
   return (
@@ -110,12 +92,12 @@ export function ProductsTable({ products, setProducts, allProducts }: ProductsTa
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onView(product)}>
                       <Eye className="h-4 w-4 mr-2" />
                       View Details
                     </DropdownMenuItem>
                     {profile?.role === 'admin' && (
-                      <DropdownMenuItem onClick={() => setEditProduct(product)}>
+                      <DropdownMenuItem onClick={() => onEdit(product)}>
                         <Edit className="h-4 w-4 mr-2" />
                         Edit Product
                       </DropdownMenuItem>
@@ -123,7 +105,7 @@ export function ProductsTable({ products, setProducts, allProducts }: ProductsTa
                     {profile?.role === 'admin' && (
                       <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600" onClick={() => setDeleteProductId(product.id)}>
+                        <DropdownMenuItem className="text-red-600" onClick={() => onDelete(product)}>
                           <Trash2 className="h-4 w-4 mr-2" />
                           Delete
                         </DropdownMenuItem>
@@ -136,26 +118,6 @@ export function ProductsTable({ products, setProducts, allProducts }: ProductsTa
           ))}
         </TableBody>
       </Table>
-      
-      {/* Edit Product Dialog */}
-      {editProduct && (
-        <EditProductDialog
-          isOpen={!!editProduct}
-          onClose={() => setEditProduct(null)}
-          product={editProduct}
-          onProductUpdate={handleProductUpdate}
-        />
-      )}
-      
-      {/* Delete Product Dialog */}
-      {deleteProductId && (
-        <DeleteProductDialog
-          isOpen={!!deleteProductId}
-          onClose={() => setDeleteProductId(null)}
-          productId={deleteProductId}
-          onProductDelete={handleProductDelete}
-        />
-      )}
     </div>
   )
 }

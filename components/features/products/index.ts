@@ -1,0 +1,7 @@
+export { ProductDetailsModal } from './ProductDetailsModal'
+export { ProductFormModal } from './ProductFormModal'
+export { ProductSearchFilter } from './ProductSearchFilter'
+export { AddProductDialog } from './AddProductDialog'
+export { EditProductDialog } from './EditProductDialog'
+export { DeleteProductDialog } from './DeleteProductDialog'
+export { ProductsTable } from './products-table'
