@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
-import { databaseService } from '@/lib/database.service'
+import { DataService } from '@/lib/data-service'
 import { Product, ProductFormData } from '@/types/product.types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -78,15 +78,19 @@ export function ProductFormModal({
 
   useEffect(() => {
     if (product && mode === 'edit') {
+      // Handle category and supplier that might be objects
+      const categoryName = typeof product.category === 'object' ? product.category?.name : product.category
+      const supplierName = typeof product.supplier === 'object' ? product.supplier?.name : product.supplier
+      
       setFormData({
         name: product.name || '',
         sku: product.sku || '',
         description: product.description || '',
-        category: product.category || '',
+        category: categoryName || '',
         quantity: product.quantity || 0,
         price: product.price || 0,
-        supplier: product.supplier || '',
-        minStockLevel: product.minStockLevel || 0,
+        supplier: supplierName || '',
+        minStockLevel: product.min_quantity || product.minStockLevel || 0,
         maxStockLevel: product.maxStockLevel || 0,
         location: product.location || '',
         barcode: product.barcode || '',
@@ -99,46 +103,50 @@ export function ProductFormModal({
 
   const generateSKU = () => {
     const timestamp = Date.now().toString().slice(-6)
-    const categoryCode = formData.category.substring(0, 2).toUpperCase()
-    const nameCode = formData.name.substring(0, 2).toUpperCase()
+    const categoryCode = formData.category ? formData.category.substring(0, 2).toUpperCase().padEnd(2, 'X') : 'XX'
+    const nameCode = formData.name ? formData.name.substring(0, 2).toUpperCase().padEnd(2, 'X') : 'XX'
     return `${categoryCode}${nameCode}-${timestamp}`
   }
 
   const validateForm = (): boolean => {
     const newErrors: Partial<ProductFormData> = {}
 
-    if (!formData.name.trim()) {
+    console.log('Validating form data:', formData)
+
+    if (!formData.name || !formData.name.trim()) {
       newErrors.name = 'Product name is required'
     }
 
-    if (!formData.sku.trim()) {
+    if (!formData.sku || !formData.sku.trim()) {
       newErrors.sku = 'SKU is required'
     }
 
-    if (!formData.category) {
+    if (!formData.category || !formData.category.trim()) {
       newErrors.category = 'Category is required'
     }
 
-    if (formData.quantity < 0) {
-      newErrors.quantity = 'Quantity cannot be negative'
+    if (formData.quantity < 0 || isNaN(formData.quantity)) {
+      newErrors.quantity = 'Quantity must be a valid number and cannot be negative'
     }
 
-    if (formData.price <= 0) {
-      newErrors.price = 'Price must be greater than 0'
+    if (formData.price <= 0 || isNaN(formData.price)) {
+      newErrors.price = 'Price must be a valid number greater than 0'
     }
 
-    if (!formData.supplier.trim()) {
+    if (!formData.supplier || !formData.supplier.trim()) {
       newErrors.supplier = 'Supplier is required'
     }
 
-    if (formData.minStockLevel < 0) {
-      newErrors.minStockLevel = 'Minimum stock level cannot be negative'
+    if (formData.minStockLevel < 0 || isNaN(formData.minStockLevel)) {
+      newErrors.minStockLevel = 'Minimum stock level must be a valid number and cannot be negative'
     }
 
-    if (formData.maxStockLevel < formData.minStockLevel) {
+    // Only check max vs min if both have valid values
+    if (!isNaN(formData.maxStockLevel) && !isNaN(formData.minStockLevel) && formData.maxStockLevel > 0 && formData.maxStockLevel < formData.minStockLevel) {
       newErrors.maxStockLevel = 'Maximum stock level must be greater than minimum'
     }
 
+    console.log('Validation errors:', newErrors)
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -160,24 +168,34 @@ export function ProductFormModal({
 
     try {
       if (mode === 'create') {
-        await databaseService.createProduct({
+        // Need to find category_id for the selected category name
+        const categories = await DataService.getAllCategories()
+        const selectedCategory = categories.find(cat => cat.name === formData.category)
+        
+        await DataService.createProduct({
           name: formData.name,
           sku: formData.sku,
           description: formData.description,
-          category: formData.category,
+          category_id: selectedCategory?.id || '',
           quantity: formData.quantity,
+          min_quantity: formData.minStockLevel,
           price: formData.price,
           supplier: formData.supplier,
-          // Add additional fields if supported by database
+          image_url: undefined, // Optional
         })
         toast.success('Product created successfully!')
       } else if (product) {
-        await databaseService.updateProduct(product.id, {
+        // Need to find category_id for the selected category name
+        const categories = await DataService.getAllCategories()
+        const selectedCategory = categories.find(cat => cat.name === formData.category)
+        
+        await DataService.updateProduct(product.id, {
           name: formData.name,
           sku: formData.sku,
           description: formData.description,
-          category: formData.category,
+          category_id: selectedCategory?.id || product.category_id,
           quantity: formData.quantity,
+          min_quantity: formData.minStockLevel,
           price: formData.price,
           supplier: formData.supplier,
         })

@@ -77,10 +77,14 @@ export function ProductsTable({ products, onEdit, onDelete, onView }: ProductsTa
               </TableCell>
               <TableCell className="font-medium">{product.name}</TableCell>
               <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-              <TableCell>{product.category}</TableCell>
+              <TableCell>
+                {typeof product.category === 'object' ? product.category?.name || 'N/A' : product.category}
+              </TableCell>
               <TableCell className="text-right font-mono">{product.quantity}</TableCell>
               <TableCell className="text-right font-mono">${product.price}</TableCell>
-              <TableCell>{product.supplier}</TableCell>
+              <TableCell>
+                {typeof product.supplier === 'object' ? product.supplier?.name || 'N/A' : product.supplier}
+              </TableCell>
               <TableCell>{getStatusBadge(product.status)}</TableCell>
               <TableCell className="text-sm text-gray-600">{product.lastUpdated}</TableCell>
               <TableCell>

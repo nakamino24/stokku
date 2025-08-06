@@ -15,7 +15,7 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}) {
   const { 
     requireAuth = true, 
     requireRole, 
-    redirectTo = '/auth/login' 
+    redirectTo = '/' 
   } = options
 
   const { user, profile, loading } = useAuth()

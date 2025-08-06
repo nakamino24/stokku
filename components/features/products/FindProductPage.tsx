@@ -55,12 +55,20 @@ export function FindProductPage({
 
   // Get unique categories and suppliers for filters
   const categories = useMemo(() => 
-    Array.from(new Set(products.map(p => p.category))).sort(),
+    Array.from(new Set(products
+      .map(p => typeof p.category === 'object' ? p.category?.name : p.category)
+      .filter(Boolean)
+      .filter(c => typeof c === 'string')
+    )).sort(),
     [products]
   )
   
   const suppliers = useMemo(() => 
-    Array.from(new Set(products.map(p => p.supplier))).sort(),
+    Array.from(new Set(products
+      .map(p => typeof p.supplier === 'object' ? p.supplier?.name : p.supplier)
+      .filter(Boolean)
+      .filter(s => typeof s === 'string')
+    )).sort(),
     [products]
   )
 
@@ -68,19 +76,21 @@ export function FindProductPage({
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
       // Search term filter
+      const supplierName = typeof product.supplier === 'object' ? product.supplier?.name : product.supplier
       const matchesSearch = searchTerm === '' || 
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.supplier.toLowerCase().includes(searchTerm.toLowerCase())
+        (supplierName && supplierName.toLowerCase().includes(searchTerm.toLowerCase()))
 
       // Category filter
-      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter
+      const categoryName = typeof product.category === 'object' ? product.category?.name : product.category
+      const matchesCategory = categoryFilter === 'all' || categoryName === categoryFilter
 
       // Status filter
       const matchesStatus = statusFilter === 'all' || product.status === statusFilter
 
       // Supplier filter
-      const matchesSupplier = supplierFilter === 'all' || product.supplier === supplierFilter
+      const matchesSupplier = supplierFilter === 'all' || supplierName === supplierFilter
 
       // Price range filter
       const matchesPrice = 
@@ -158,8 +168,8 @@ export function FindProductPage({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map(category => (
-                    <SelectItem key={category} value={category}>
+                  {categories.map((category, index) => (
+                    <SelectItem key={`find-category-${category}-${index}`} value={category}>
                       {category}
                     </SelectItem>
                   ))}
@@ -190,8 +200,8 @@ export function FindProductPage({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Suppliers</SelectItem>
-                  {suppliers.map(supplier => (
-                    <SelectItem key={supplier} value={supplier}>
+                  {suppliers.map((supplier, index) => (
+                    <SelectItem key={`find-supplier-${supplier}-${index}`} value={supplier}>
                       {supplier}
                     </SelectItem>
                   ))}
@@ -305,10 +315,14 @@ export function FindProductPage({
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-                      <TableCell>{product.category}</TableCell>
+                      <TableCell>
+                        {typeof product.category === 'object' ? product.category?.name || 'N/A' : product.category}
+                      </TableCell>
                       <TableCell>{product.quantity}</TableCell>
                       <TableCell>${product.price.toFixed(2)}</TableCell>
-                      <TableCell>{product.supplier}</TableCell>
+                      <TableCell>
+                        {typeof product.supplier === 'object' ? product.supplier?.name || 'N/A' : product.supplier}
+                      </TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(product.status)}>
                           {product.status}

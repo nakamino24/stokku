@@ -19,6 +19,13 @@ export default function DashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    // Redirect unauthenticated users
+    if (!loading && (!user || !profile)) {
+      router.push('/')
+    }
+  }, [user, profile, loading, router])
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -28,8 +35,11 @@ export default function DashboardPage() {
   }
 
   if (!user || !profile) {
-    router.push('/auth/login')
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
   }
 
   return <DashboardClient />

@@ -35,9 +35,23 @@ export function ProductSearchFilter({
   const [filters, setFilters] = useState<ProductFilter>({})
 
   // Get unique values for filter options
-  const categories = [...new Set(products.map(p => p.category))].sort()
-  const statuses = [...new Set(products.map(p => p.status))].sort()
-  const suppliers = [...new Set(products.map(p => p.supplier))].sort()
+  const categories = [...new Set(products
+    .map(p => typeof p.category === 'object' ? p.category?.name : p.category)
+    .filter(Boolean)
+    .filter(v => typeof v === 'string')
+  )].sort()
+  
+  const statuses = [...new Set(products
+    .map(p => p.status)
+    .filter(Boolean)
+    .filter(v => typeof v === 'string')
+  )].sort()
+  
+  const suppliers = [...new Set(products
+    .map(p => typeof p.supplier === 'object' ? p.supplier?.name : p.supplier)
+    .filter(Boolean)
+    .filter(v => typeof v === 'string')
+  )].sort()
 
   const applyFilters = (newFilters: ProductFilter, searchTerm?: string) => {
     const currentSearch = searchTerm !== undefined ? searchTerm : search
@@ -46,18 +60,26 @@ export function ProductSearchFilter({
     // Apply search
     if (currentSearch.trim()) {
       const searchLower = currentSearch.toLowerCase()
-      filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchLower) ||
-        product.sku.toLowerCase().includes(searchLower) ||
-        product.category.toLowerCase().includes(searchLower) ||
-        product.supplier.toLowerCase().includes(searchLower) ||
-        (product.description?.toLowerCase().includes(searchLower))
-      )
+      filtered = filtered.filter(product => {
+        const categoryName = typeof product.category === 'object' ? product.category?.name : product.category
+        const supplierName = typeof product.supplier === 'object' ? product.supplier?.name : product.supplier
+        
+        return (
+          product.name.toLowerCase().includes(searchLower) ||
+          product.sku.toLowerCase().includes(searchLower) ||
+          (categoryName && categoryName.toLowerCase().includes(searchLower)) ||
+          (supplierName && supplierName.toLowerCase().includes(searchLower)) ||
+          (product.description?.toLowerCase().includes(searchLower))
+        )
+      })
     }
 
     // Apply filters
     if (newFilters.category) {
-      filtered = filtered.filter(p => p.category === newFilters.category)
+      filtered = filtered.filter(p => {
+        const categoryName = typeof p.category === 'object' ? p.category?.name : p.category
+        return categoryName === newFilters.category
+      })
     }
 
     if (newFilters.status) {
@@ -65,7 +87,10 @@ export function ProductSearchFilter({
     }
 
     if (newFilters.supplier) {
-      filtered = filtered.filter(p => p.supplier === newFilters.supplier)
+      filtered = filtered.filter(p => {
+        const supplierName = typeof p.supplier === 'object' ? p.supplier?.name : p.supplier
+        return supplierName === newFilters.supplier
+      })
     }
 
     if (newFilters.minPrice !== undefined) {
@@ -127,8 +152,8 @@ export function ProductSearchFilter({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value=" ">All Categories</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category} value={category}>
+            {categories.map((category, index) => (
+              <SelectItem key={`category-${category}-${index}`} value={category}>
                 {category}
               </SelectItem>
             ))}
@@ -142,8 +167,8 @@ export function ProductSearchFilter({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value=" ">All Status</SelectItem>
-            {statuses.map((status) => (
-              <SelectItem key={status} value={status}>
+            {statuses.map((status, index) => (
+              <SelectItem key={`status-${status}-${index}`} value={status}>
                 {status}
               </SelectItem>
             ))}
@@ -157,8 +182,8 @@ export function ProductSearchFilter({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value=" ">All Suppliers</SelectItem>
-            {suppliers.map((supplier) => (
-              <SelectItem key={supplier} value={supplier}>
+            {suppliers.map((supplier, index) => (
+              <SelectItem key={`supplier-${supplier}-${index}`} value={supplier}>
                 {supplier}
               </SelectItem>
             ))}
