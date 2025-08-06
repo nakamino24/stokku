@@ -1,5 +1,14 @@
 import { supabase } from './supabase'
 import { Product, Category, Transaction } from '@/types/product.types'
+import { 
+  Supplier, 
+  PurchaseTransaction, 
+  CreateSupplierRequest, 
+  UpdateSupplierRequest,
+  CreatePurchaseTransactionRequest,
+  UpdatePurchaseTransactionRequest,
+  SupplierStats 
+} from '@/types/supplier.types'
 
 export class SupabaseService {
   // Product CRUD operations
@@ -365,5 +374,223 @@ export class SupabaseService {
     if (quantity === 0) return 'Out of Stock'
     if (quantity <= minQuantity) return 'Low Stock'
     return 'In Stock'
+  }
+
+  // ======================
+  // SUPPLIER OPERATIONS
+  // ======================
+
+  // Get all suppliers
+  static async getAllSuppliers(): Promise<Supplier[]> {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('*')
+      .order('name')
+    
+    if (error) throw error
+    return data || []
+  }
+
+  // Get supplier by ID
+  static async getSupplierById(id: string): Promise<Supplier> {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('*')
+      .eq('id', id)
+      .single()
+    
+    if (error) throw error
+    return data
+  }
+
+  // Create supplier
+  static async createSupplier(supplier: CreateSupplierRequest): Promise<Supplier> {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .insert([supplier])
+      .select()
+      .single()
+    
+    if (error) throw error
+    return data
+  }
+
+  // Update supplier
+  static async updateSupplier(id: string, updates: Omit<UpdateSupplierRequest, 'id'>): Promise<Supplier> {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return data
+  }
+
+  // Delete supplier
+  static async deleteSupplier(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('suppliers')
+      .delete()
+      .eq('id', id)
+    
+    if (error) throw error
+  }
+
+  // Get suppliers with statistics
+  static async getSuppliersWithStats(): Promise<(Supplier & SupplierStats)[]> {
+    const suppliers = await this.getAllSuppliers()
+    
+    const enrichedSuppliers = await Promise.all(
+      suppliers.map(async (supplier) => {
+        // Get products count by supplier name (legacy field)
+        const { data: products } = await supabase
+          .from('products')
+          .select('id, price, quantity')
+          .eq('supplier', supplier.name)
+        
+        // Get purchase transactions
+        const { data: transactions } = await supabase
+          .from('purchase_transactions')
+          .select('total_amount, order_date, status')
+          .eq('supplier_id', supplier.id)
+          .eq('status', 'Completed')
+        
+        const totalProducts = products?.length || 0
+        const totalPurchaseValue = transactions?.reduce((sum, t) => sum + parseFloat(t.total_amount.toString()), 0) || 0
+        const totalTransactions = transactions?.length || 0
+        
+        // Get last transaction date
+        const lastTransaction = transactions?.sort((a, b) => 
+          new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
+        )[0]
+        const lastTransactionDate = lastTransaction?.order_date || supplier.created_at
+        
+        // Calculate monthly purchases (last 3 months)
+        const now = new Date()
+        const months = ['Nov', 'Dec', 'Jan'] // Simplified for demo
+        const monthlyPurchases = months.map((month, index) => {
+          const monthTransactions = transactions?.filter(t => {
+            const transactionDate = new Date(t.order_date)
+            const targetMonth = new Date(now.getFullYear(), now.getMonth() - (2 - index), 1)
+            return transactionDate.getMonth() === targetMonth.getMonth()
+          }) || []
+          
+          return {
+            month,
+            amount: monthTransactions.reduce((sum, t) => sum + parseFloat(t.total_amount.toString()), 0),
+            orders: monthTransactions.length
+          }
+        })
+        
+        return {
+          ...supplier,
+          totalProducts,
+          totalPurchaseValue,
+          totalTransactions,
+          lastTransactionDate,
+          monthlyPurchases
+        }
+      })
+    )
+    
+    return enrichedSuppliers
+  }
+
+  // Search suppliers
+  static async searchSuppliers(query: string): Promise<Supplier[]> {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('*')
+      .or(`name.ilike.%${query}%,email.ilike.%${query}%,contact.ilike.%${query}%`)
+      .order('name')
+    
+    if (error) throw error
+    return data || []
+  }
+
+  // ======================
+  // PURCHASE TRANSACTIONS
+  // ======================
+
+  // Get all purchase transactions
+  static async getAllPurchaseTransactions(): Promise<PurchaseTransaction[]> {
+    const { data, error } = await supabase
+      .from('purchase_transactions')
+      .select(`
+        *,
+        supplier:suppliers(id, name, contact, email),
+        product:products(id, name, sku)
+      `)
+      .order('order_date', { ascending: false })
+    
+    if (error) throw error
+    return data || []
+  }
+
+  // Get purchase transactions by supplier
+  static async getPurchaseTransactionsBySupplier(supplierId: string): Promise<PurchaseTransaction[]> {
+    const { data, error } = await supabase
+      .from('purchase_transactions')
+      .select(`
+        *,
+        supplier:suppliers(id, name, contact, email),
+        product:products(id, name, sku)
+      `)
+      .eq('supplier_id', supplierId)
+      .order('order_date', { ascending: false })
+    
+    if (error) throw error
+    return data || []
+  }
+
+  // Create purchase transaction
+  static async createPurchaseTransaction(transaction: CreatePurchaseTransactionRequest): Promise<PurchaseTransaction> {
+    const { data, error } = await supabase
+      .from('purchase_transactions')
+      .insert([transaction])
+      .select(`
+        *,
+        supplier:suppliers(id, name, contact, email),
+        product:products(id, name, sku)
+      `)
+      .single()
+    
+    if (error) throw error
+    return data
+  }
+
+  // Update purchase transaction
+  static async updatePurchaseTransaction(id: string, updates: Omit<UpdatePurchaseTransactionRequest, 'id'>): Promise<PurchaseTransaction> {
+    const { data, error } = await supabase
+      .from('purchase_transactions')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select(`
+        *,
+        supplier:suppliers(id, name, contact, email),
+        product:products(id, name, sku)
+      `)
+      .single()
+    
+    if (error) throw error
+    return data
+  }
+
+  // Delete purchase transaction
+  static async deletePurchaseTransaction(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('purchase_transactions')
+      .delete()
+      .eq('id', id)
+    
+    if (error) throw error
   }
 }

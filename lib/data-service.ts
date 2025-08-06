@@ -1,9 +1,19 @@
 import { SupabaseService } from './supabase-database.service'
 import { sampleProductsDB, sampleCategories } from './database-compatible-sample-data'
 import { Product, Category, Transaction } from '@/types/product.types'
+import { 
+  Supplier, 
+  PurchaseTransaction, 
+  CreateSupplierRequest, 
+  UpdateSupplierRequest,
+  CreatePurchaseTransactionRequest,
+  UpdatePurchaseTransactionRequest,
+  SupplierStats 
+} from '@/types/supplier.types'
 
 // Configuration: Set to true to use Supabase, false to use sample data
-const USE_SUPABASE = process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_USE_SUPABASE === 'true'
+// Now using Supabase by default for real data
+const USE_SUPABASE = process.env.NEXT_PUBLIC_USE_SUPABASE !== 'false'
 
 export class DataService {
   
@@ -287,6 +297,148 @@ export class DataService {
       outOfStockCount,
       products
     })
+  }
+
+  // ======================
+  // SUPPLIER OPERATIONS
+  // ======================
+
+  static async getAllSuppliers(): Promise<Supplier[]> {
+    if (USE_SUPABASE) {
+      return await SupabaseService.getAllSuppliers()
+    }
+    
+    // Return sample data for development (fallback)
+    return Promise.resolve([])
+  }
+
+  static async getSupplierById(id: string): Promise<Supplier | null> {
+    if (USE_SUPABASE) {
+      try {
+        return await SupabaseService.getSupplierById(id)
+      } catch (error) {
+        return null
+      }
+    }
+    
+    return Promise.resolve(null)
+  }
+
+  static async createSupplier(supplier: CreateSupplierRequest): Promise<Supplier | null> {
+    if (USE_SUPABASE) {
+      try {
+        return await SupabaseService.createSupplier(supplier)
+      } catch (error) {
+        console.error('Error creating supplier:', error)
+        return null
+      }
+    }
+    
+    return Promise.resolve(null)
+  }
+
+  static async updateSupplier(id: string, updates: Omit<UpdateSupplierRequest, 'id'>): Promise<Supplier | null> {
+    if (USE_SUPABASE) {
+      try {
+        return await SupabaseService.updateSupplier(id, updates)
+      } catch (error) {
+        console.error('Error updating supplier:', error)
+        return null
+      }
+    }
+    
+    return Promise.resolve(null)
+  }
+
+  static async deleteSupplier(id: string): Promise<boolean> {
+    if (USE_SUPABASE) {
+      try {
+        await SupabaseService.deleteSupplier(id)
+        return true
+      } catch (error) {
+        console.error('Error deleting supplier:', error)
+        return false
+      }
+    }
+    
+    return Promise.resolve(false)
+  }
+
+  static async getSuppliersWithStats(): Promise<(Supplier & SupplierStats)[]> {
+    if (USE_SUPABASE) {
+      return await SupabaseService.getSuppliersWithStats()
+    }
+    
+    // Return empty array for development (fallback)
+    return Promise.resolve([])
+  }
+
+  static async searchSuppliers(query: string): Promise<Supplier[]> {
+    if (USE_SUPABASE) {
+      return await SupabaseService.searchSuppliers(query)
+    }
+    
+    return Promise.resolve([])
+  }
+
+  // ======================
+  // PURCHASE TRANSACTIONS
+  // ======================
+
+  static async getAllPurchaseTransactions(): Promise<PurchaseTransaction[]> {
+    if (USE_SUPABASE) {
+      return await SupabaseService.getAllPurchaseTransactions()
+    }
+    
+    return Promise.resolve([])
+  }
+
+  static async getPurchaseTransactionsBySupplier(supplierId: string): Promise<PurchaseTransaction[]> {
+    if (USE_SUPABASE) {
+      return await SupabaseService.getPurchaseTransactionsBySupplier(supplierId)
+    }
+    
+    return Promise.resolve([])
+  }
+
+  static async createPurchaseTransaction(transaction: CreatePurchaseTransactionRequest): Promise<PurchaseTransaction | null> {
+    if (USE_SUPABASE) {
+      try {
+        return await SupabaseService.createPurchaseTransaction(transaction)
+      } catch (error) {
+        console.error('Error creating purchase transaction:', error)
+        return null
+      }
+    }
+    
+    return Promise.resolve(null)
+  }
+
+  static async updatePurchaseTransaction(id: string, updates: Omit<UpdatePurchaseTransactionRequest, 'id'>): Promise<PurchaseTransaction | null> {
+    if (USE_SUPABASE) {
+      try {
+        return await SupabaseService.updatePurchaseTransaction(id, updates)
+      } catch (error) {
+        console.error('Error updating purchase transaction:', error)
+        return null
+      }
+    }
+    
+    return Promise.resolve(null)
+  }
+
+  static async deletePurchaseTransaction(id: string): Promise<boolean> {
+    if (USE_SUPABASE) {
+      try {
+        await SupabaseService.deletePurchaseTransaction(id)
+        return true
+      } catch (error) {
+        console.error('Error deleting purchase transaction:', error)
+        return false
+      }
+    }
+    
+    return Promise.resolve(false)
   }
 
   // Configuration

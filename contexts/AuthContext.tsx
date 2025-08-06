@@ -23,9 +23,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+  
+  // Check if we should use Supabase based on environment variable
+  const useSupabase = process.env.NEXT_PUBLIC_USE_SUPABASE !== 'false'
 
   const refreshProfile = async () => {
-    if (!user) return
+    if (!user || !useSupabase) return
     
     try {
       const { data, error } = await supabase
@@ -34,14 +37,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', user.id)
         .single()
       
-      if (error) throw error
+      if (error) {
+        // If the profiles table doesn't exist or user profile doesn't exist, don't throw
+        if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
+          console.warn('Profiles table or user profile not found. Skipping profile fetch.')
+          return
+        }
+        throw error
+      }
       setProfile(data)
     } catch (error) {
       console.error('Error fetching profile:', error)
+      // Don't throw error, just log it and continue without profile
+      setProfile(null)
     }
   }
 
   const signIn = async (email: string, password: string) => {
+    if (!useSupabase) {
+      throw new Error('Authentication is not available in sample data mode')
+    }
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -53,6 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signUp = async (email: string, password: string, fullName: string) => {
+    if (!useSupabase) {
+      throw new Error('Authentication is not available in sample data mode')
+    }
+    
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -103,6 +123,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    if (!useSupabase) {
+      throw new Error('Authentication is not available in sample data mode')
+    }
+    
     const { error } = await supabase.auth.signOut()
     if (error) throw error
     
@@ -111,16 +135,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    // Skip auth operations when Supabase is disabled
+    if (!useSupabase) {
+      setLoading(false)
+      return
+    }
+    
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
-      
-      if (session?.user) {
-        await refreshProfile()
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        setUser(session?.user ?? null)
+        
+        if (session?.user) {
+          await refreshProfile()
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error)
+      } finally {
+        setLoading(false)
       }
-      
-      setLoading(false)
     }
 
     getInitialSession()

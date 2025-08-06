@@ -3,7 +3,7 @@
 import { Product } from "@/types/product.types"
 import { ProductsTable, FindProductPage } from "@/components/features/products"
 import { DashboardOverview } from "@/components/features/dashboard"
-import { ReportsView, SalesReportPage, StockMovementPage } from "@/components/features/reports"
+import { ReportsView, SalesReportPage, StockMovementPage, SupplierReportPage } from "@/components/features/reports"
 import { ImportExportManager } from "@/components/features/common"
 import { SettingsPage } from "@/components/features/settings"
 
@@ -74,18 +74,6 @@ export function InventoryContent({
     )
   }
 
-  if (currentView.includes("report")) {
-    return (
-      <main className="flex-1 overflow-auto p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">{getViewTitle()}</h1>
-          <p className="text-sm text-gray-600 mt-1">Analyze your inventory data and trends</p>
-        </div>
-        <ReportsView reportType={currentView} products={products} />
-      </main>
-    )
-  }
-
   if (currentView === "import-data") {
     return (
       <main className="flex-1 overflow-auto p-6">
@@ -123,6 +111,26 @@ export function InventoryContent({
     return (
       <main className="flex-1 overflow-auto p-6">
         <StockMovementPage products={products} />
+      </main>
+    )
+  }
+
+  if (currentView === "supplier-report") {
+    return (
+      <main className="flex-1 overflow-auto p-6">
+        <SupplierReportPage />
+      </main>
+    )
+  }
+
+  if (currentView.includes("report")) {
+    return (
+      <main className="flex-1 overflow-auto p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900">{getViewTitle()}</h1>
+          <p className="text-sm text-gray-600 mt-1">Analyze your inventory data and trends</p>
+        </div>
+        <ReportsView reportType={currentView} products={products} />
       </main>
     )
   }

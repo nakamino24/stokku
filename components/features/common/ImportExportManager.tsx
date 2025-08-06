@@ -30,26 +30,27 @@ import {
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 
+// Import and initialize autoTable plugin
+let autoTablePlugin: any
+if (typeof window !== 'undefined') {
+  autoTablePlugin = require('jspdf-autotable')
+}
+
 // Type augmentation for jsPDF autotable
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF
+    lastAutoTable: {
+      finalY: number
+    }
+  }
+}
 
 interface ImportExportProps {
   products: any[]
   onImport: (products: any[]) => void
-}
-
-// Extend jsPDF interface for autoTable
-declare global {
-  namespace jsPDF {
-    interface jsPDF {
-      autoTable: (options: any) => jsPDF
-      lastAutoTable: {
-        finalY: number
-      }
-    }
-  }
 }
 
 export function ImportExportManager({ products, onImport }: ImportExportProps) {
@@ -91,92 +92,119 @@ export function ImportExportManager({ products, onImport }: ImportExportProps) {
       doc.text(`Total Inventory Value: $${totalValue.toFixed(2)}`, 20, 49)
       doc.text(`In Stock: ${inStock} | Low Stock: ${lowStock} | Out of Stock: ${outOfStock}`, 20, 56)
       
-      // Add summary boxes
-      const summaryData = [
-        ['Metric', 'Value', 'Status'],
-        ['Total Products', products.length.toString(), 'Active'],
-        ['Inventory Value', `$${totalValue.toFixed(2)}`, 'Calculated'],
-        ['In Stock Items', inStock.toString(), 'Available'],
-        ['Low Stock Items', lowStock.toString(), lowStock > 0 ? 'Attention Needed' : 'Good'],
-        ['Out of Stock Items', outOfStock.toString(), outOfStock > 0 ? 'Restock Required' : 'Good']
-      ]
-
-      doc.autoTable({
-        startY: 65,
-        head: [summaryData[0]],
-        body: summaryData.slice(1),
-        theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246] },
-        styles: { fontSize: 9 },
-        columnStyles: {
-          0: { fontStyle: 'bold' },
-          2: { halign: 'center' }
-        }
-      })
-
-      // Add detailed product table
+      // Add summary section
       doc.setFontSize(14)
       doc.setTextColor(59, 130, 246)
-      doc.text('Detailed Product Inventory', 20, doc.lastAutoTable.finalY + 20)
+      doc.text('Summary Statistics', 20, 70)
       
-      const tableData = products.map(product => [
-        product.name,
-        product.sku,
-        product.category,
-        product.quantity.toString(),
-        `$${product.price.toFixed(2)}`,
-        product.supplier,
-        product.status,
-        product.lastUpdated
-      ])
-
-      doc.autoTable({
-        startY: doc.lastAutoTable.finalY + 30,
-        head: [['Product Name', 'SKU', 'Category', 'Qty', 'Price', 'Supplier', 'Status', 'Updated']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: { 
-          fillColor: [59, 130, 246],
-          textColor: 255,
-          fontStyle: 'bold'
-        },
-        styles: { 
-          fontSize: 8,
-          cellPadding: 3
-        },
-        columnStyles: {
-          0: { cellWidth: 35 },
-          1: { cellWidth: 20, halign: 'center' },
-          2: { cellWidth: 25 },
-          3: { cellWidth: 15, halign: 'center' },
-          4: { cellWidth: 18, halign: 'right' },
-          5: { cellWidth: 25 },
-          6: { cellWidth: 20, halign: 'center' },
-          7: { cellWidth: 22, halign: 'center' }
-        },
-        didParseCell: function(data: any) {
-          // Color code status cells
-          if (data.column.index === 6) {
-            if (data.cell.raw === 'Out of Stock') {
-              data.cell.styles.fillColor = [254, 226, 226] // Light red
-              data.cell.styles.textColor = [185, 28, 28] // Red text
-            } else if (data.cell.raw === 'Low Stock') {
-              data.cell.styles.fillColor = [254, 240, 138] // Light yellow
-              data.cell.styles.textColor = [146, 64, 14] // Orange text
-            } else if (data.cell.raw === 'In Stock') {
-              data.cell.styles.fillColor = [220, 252, 231] // Light green
-              data.cell.styles.textColor = [21, 128, 61] // Green text
-            }
-          }
+      doc.setFontSize(10)
+      doc.setTextColor(0, 0, 0)
+      let yPos = 80
+      doc.text(`• Total Products: ${products.length}`, 30, yPos)
+      yPos += 7
+      doc.text(`• Total Inventory Value: $${totalValue.toFixed(2)}`, 30, yPos)
+      yPos += 7
+      doc.text(`• In Stock Items: ${inStock}`, 30, yPos)
+      yPos += 7
+      doc.text(`• Low Stock Items: ${lowStock}`, 30, yPos)
+      yPos += 7
+      doc.text(`• Out of Stock Items: ${outOfStock}`, 30, yPos)
+      yPos += 15
+      
+      // Add products list
+      doc.setFontSize(14)
+      doc.setTextColor(59, 130, 246)
+      doc.text('Product List', 20, yPos)
+      yPos += 12
+      
+      // Define column positions and widths
+      const cols = {
+        name: { x: 20, width: 35 },
+        sku: { x: 58, width: 20 },
+        category: { x: 81, width: 25 },
+        qty: { x: 109, width: 12 },
+        price: { x: 124, width: 18 },
+        supplier: { x: 145, width: 25 },
+        status: { x: 173, width: 20 }
+      }
+      
+      doc.setFontSize(9)
+      doc.setTextColor(0, 0, 0)
+      doc.setFont(undefined, 'bold')
+      
+      // Add table headers with proper positioning
+      doc.text('Product Name', cols.name.x, yPos)
+      doc.text('SKU', cols.sku.x, yPos)
+      doc.text('Category', cols.category.x, yPos)
+      doc.text('Qty', cols.qty.x, yPos)
+      doc.text('Price', cols.price.x, yPos)
+      doc.text('Supplier', cols.supplier.x, yPos)
+      doc.text('Status', cols.status.x, yPos)
+      yPos += 3
+      
+      // Add separator line
+      doc.line(20, yPos, 193, yPos)
+      yPos += 6
+      
+      // Reset font to normal
+      doc.setFont(undefined, 'normal')
+      doc.setFontSize(8)
+      
+      // Add products (limit to first 35 to fit on page)
+      const productsToShow = products.slice(0, 35)
+      productsToShow.forEach(product => {
+        if (yPos > 270) { // Start new page if needed
+          doc.addPage()
+          yPos = 20
+          
+          // Re-add headers on new page
+          doc.setFont(undefined, 'bold')
+          doc.setFontSize(9)
+          doc.text('Product Name', cols.name.x, yPos)
+          doc.text('SKU', cols.sku.x, yPos)
+          doc.text('Category', cols.category.x, yPos)
+          doc.text('Qty', cols.qty.x, yPos)
+          doc.text('Price', cols.price.x, yPos)
+          doc.text('Supplier', cols.supplier.x, yPos)
+          doc.text('Status', cols.status.x, yPos)
+          yPos += 3
+          doc.line(20, yPos, 193, yPos)
+          yPos += 6
+          doc.setFont(undefined, 'normal')
+          doc.setFontSize(8)
         }
+        
+        const categoryName = typeof product.category === 'object' ? product.category?.name : product.category
+        const supplierName = typeof product.supplier === 'object' ? product.supplier?.name : product.supplier
+        
+        // Add each column with proper alignment
+        doc.text(product.name.length > 30 ? product.name.substring(0, 27) + '...' : product.name, cols.name.x, yPos)
+        doc.text(product.sku, cols.sku.x, yPos)
+        doc.text(categoryName?.length > 20 ? categoryName.substring(0, 17) + '...' : (categoryName || 'N/A'), cols.category.x, yPos)
+        doc.text(product.quantity.toString(), cols.qty.x + 6, yPos, { align: 'right' }) // Right align numbers
+        doc.text('$' + product.price.toFixed(2), cols.price.x + 12, yPos, { align: 'right' }) // Right align price
+        doc.text(supplierName?.length > 20 ? supplierName.substring(0, 17) + '...' : (supplierName || 'N/A'), cols.supplier.x, yPos)
+        
+        // Color code status
+        const statusColor = product.status === 'In Stock' ? [34, 197, 94] : 
+                           product.status === 'Low Stock' ? [234, 179, 8] : [239, 68, 68]
+        doc.setTextColor(statusColor[0], statusColor[1], statusColor[2])
+        doc.text(product.status, cols.status.x, yPos)
+        doc.setTextColor(0, 0, 0) // Reset to black
+        
+        yPos += 5
       })
-
+      
+      if (products.length > 30) {
+        yPos += 5
+        doc.text(`... and ${products.length - 30} more products`, 20, yPos)
+      }
+      
       // Add footer
       const pageHeight = doc.internal.pageSize.height
       doc.setFontSize(8)
       doc.setTextColor(150)
       doc.text('Generated by Stokku Inventory Management System', 20, pageHeight - 20)
-      doc.text(`Page 1 of 1`, doc.internal.pageSize.width - 40, pageHeight - 20)
 
       // Save the PDF
       doc.save(`stokku-inventory-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`)
