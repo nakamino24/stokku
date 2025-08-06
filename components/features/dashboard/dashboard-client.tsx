@@ -2,6 +2,8 @@
 
 import { Product } from "@/types/product.types"
 import { ProductFormModal, ProductDetailsModal } from "@/components/features/products"
+import { DeleteConfirmDialog } from "@/components/features/products/DeleteConfirmDialog"
+import { DataService } from '@/lib/data-service'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -79,17 +81,39 @@ const sampleProducts = [
 ]
 
 export function DashboardClient() {
-  const [products, setProducts] = useState<Product[]>(sampleProducts)
+  const [products, setProducts] = useState<Product[]>([])  // Start with empty array
   const [currentView, setCurrentView] = useState("dashboard")
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
+  const [loading, setLoading] = useState(true)
+  const [deleteProduct, setDeleteProduct] = useState<Product | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>(sampleProducts);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
 
   const { user, profile, signOut } = useAuth();
   const router = useRouter()
+
+  // Load products on component mount
+  useEffect(() => {
+    loadProducts()
+  }, [])
+
+  const loadProducts = async () => {
+    try {
+      setLoading(true)
+      const data = await DataService.getAllProducts()
+      setProducts(data)
+      setFilteredProducts(data)
+    } catch (error) {
+      console.error('Error loading products:', error)
+      toast.error('Failed to load products')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleLogout = async () => {
     try {
@@ -108,9 +132,22 @@ export function DashboardClient() {
     setIsFormOpen(true)
   }
 
-  const handleFormSubmit = (product?: Product) => {
-    // In a real app, you'd refetch products here.
-    // For now, we'll just close the form.
+  const handleFormSubmit = async (product?: Product) => {
+    if (product) {
+      try {
+        if (formMode === 'create') {
+          await DataService.createProduct(product)
+          toast.success('Product created successfully')
+        } else if (formMode === 'edit') {
+          await DataService.updateProduct(product.id, product)
+          toast.success('Product updated successfully')
+        }
+        await loadProducts() // Reload products
+      } catch (error) {
+        console.error('Error saving product:', error)
+        toast.error('Failed to save product')
+      }
+    }
     setIsFormOpen(false)
   }
 
@@ -121,9 +158,25 @@ export function DashboardClient() {
   }
 
   const handleDeleteProduct = (product: Product) => {
-    // In a real app, this would call an API to delete
-    setProducts(prev => prev.filter(p => p.id !== product.id))
-    toast.success('Product deleted successfully')
+    setDeleteProduct(product)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteProduct = async () => {
+    if (!deleteProduct) return
+    
+    try {
+      await DataService.deleteProduct(deleteProduct.id)
+      await loadProducts() // Reload products
+      setIsDetailsOpen(false) // Close details modal
+      toast.success('Product deleted successfully')
+    } catch (error) {
+      console.error('Error deleting product:', error)
+      toast.error('Failed to delete product')
+    } finally {
+      setIsDeleteDialogOpen(false)
+      setDeleteProduct(null)
+    }
   }
 
   const handleViewProduct = (product: Product) => {
@@ -131,10 +184,18 @@ export function DashboardClient() {
     setIsDetailsOpen(true)
   }
 
-  const handleImportProducts = (importedProducts: Product[]) => {
-    setProducts(prev => [...prev, ...importedProducts])
-    setFilteredProducts(prev => [...prev, ...importedProducts])
-    toast.success(`Successfully imported ${importedProducts.length} products`)
+  const handleImportProducts = async (importedProducts: Product[]) => {
+    try {
+      // Create each imported product in the database
+      for (const product of importedProducts) {
+        await DataService.createProduct(product)
+      }
+      await loadProducts() // Reload products
+      toast.success(`Successfully imported ${importedProducts.length} products`)
+    } catch (error) {
+      console.error('Error importing products:', error)
+      toast.error('Failed to import some products')
+    }
   }
 
   return (
@@ -175,14 +236,24 @@ export function DashboardClient() {
             <div className="p-4 bg-gray-50/50">
               <ProductSearchFilter products={products} onFilterChange={setFilteredProducts} />
             </div>
-            <InventoryContent 
-              products={filteredProducts} 
-              currentView={currentView} 
-              onEditProduct={handleEditProduct}
-              onDeleteProduct={handleDeleteProduct}
-              onViewProduct={handleViewProduct}
-              onImport={handleImportProducts}
-            />
+            {loading ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading products...</p>
+                  <p className="text-xs text-gray-500 mt-2">Data source: {DataService.getDataSource()}</p>
+                </div>
+              </div>
+            ) : (
+              <InventoryContent 
+                products={filteredProducts} 
+                currentView={currentView} 
+                onEditProduct={handleEditProduct}
+                onDeleteProduct={handleDeleteProduct}
+                onViewProduct={handleViewProduct}
+                onImport={handleImportProducts}
+              />
+            )}
           </SidebarInset>
         </div>
       </SidebarProvider>
@@ -202,6 +273,16 @@ export function DashboardClient() {
         onEdit={handleEditProduct}
         onDelete={handleDeleteProduct}
         canEdit={profile?.role === 'admin'}
+      />
+
+      <DeleteConfirmDialog
+        product={deleteProduct}
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          setIsDeleteDialogOpen(false)
+          setDeleteProduct(null)
+        }}
+        onConfirm={confirmDeleteProduct}
       />
     </>
   )

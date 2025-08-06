@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardDescription, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { 
   Package, 
@@ -18,30 +18,66 @@ import {
   MapPin,
   Truck,
   Warehouse,
-  ChevronRight
+  ChevronRight,
+  Mail,
+  Lock,
+  User as UserIcon,
+  ArrowLeft
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 
 export function LandingPage() {
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [rememberMe, setRememberMe] = useState(false)
+  const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
   
-  const { signIn } = useAuth()
+  const { signIn, signUp } = useAuth()
   const router = useRouter()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
       await signIn(email, password)
-      toast.success('Welcome back!')
+      toast.success('Login successful!')
       router.push('/dashboard')
+      router.refresh()
     } catch (error: any) {
       toast.error(error.message || 'Login failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters long')
+      return
+    }
+    
+    if (!fullName.trim()) {
+      toast.error('Please enter your full name')
+      return
+    }
+    
+    setLoading(true)
+
+    try {
+      await signUp(email, password, fullName)
+      toast.success('Account created! Please check your email for verification.')
+      // Clear form fields and switch to login
+      setEmail('')
+      setPassword('')
+      setFullName('')
+      setAuthMode('login')
+    } catch (error: any) {
+      toast.error(error.message || 'Registration failed')
     } finally {
       setLoading(false)
     }
@@ -64,79 +100,144 @@ export function LandingPage() {
 
           {/* Welcome Message */}
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Login</h1>
-            <p className="text-gray-600">Welcome back! Please log-in to access our system!</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              {authMode === 'login' ? 'Login' : 'Join Stokku'}
+            </h1>
+            <p className="text-gray-600">
+              {authMode === 'login' 
+                ? 'Welcome back! Please log-in to access our system!' 
+                : 'Create your account and start managing inventory efficiently'
+              }
+            </p>
           </div>
 
-          {/* Login Form */}
-          <Card>
-            <CardContent className="p-6">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <Label htmlFor="email" className="text-sm font-medium text-gray-700">
-                    Your email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Input your login email ..."
-                    className="mt-1"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-                    Your password
-                  </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Input your login password"
-                    className="mt-1"
-                    required
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="remember"
-                      checked={rememberMe}
-                      onCheckedChange={setRememberMe}
-                    />
-                    <Label htmlFor="remember" className="text-sm text-gray-600">
-                      Remember me
-                    </Label>
+          {/* Auth Form */}
+          <Card className="backdrop-blur-sm bg-white/95 shadow-xl border-0">
+            <CardHeader className="space-y-1 pb-6">
+              <CardTitle className="text-xl font-semibold text-center">
+                {authMode === 'login' ? 'Sign In' : 'Create Account'}
+              </CardTitle>
+              <CardDescription className="text-center">
+                {authMode === 'login' 
+                  ? 'Enter your credentials to continue' 
+                  : 'Fill in your details to get started'
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-6" onSubmit={authMode === 'login' ? handleLogin : handleSignUp}>
+                <div className="space-y-4">
+                  {authMode === 'register' && (
+                    <div>
+                      <Label htmlFor="fullName" className="text-sm font-medium text-gray-700">Full Name</Label>
+                      <div className="relative mt-1">
+                        <UserIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="fullName"
+                          name="fullName"
+                          type="text"
+                          autoComplete="name"
+                          required
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          placeholder="Enter your full name"
+                          className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email</Label>
+                    <div className="relative mt-1">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder={authMode === 'login' ? 'Enter your email' : 'Enter your email'}
+                        className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
                   </div>
-                  <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
-                    Forgot password?
-                  </Link>
+                  <div>
+                    <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
+                    <div className="relative mt-1">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="password"
+                        name="password"
+                        type="password"
+                        autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={authMode === 'login' ? 'Enter your password' : 'Create a password (min. 6 characters)'}
+                        className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium"
-                  disabled={loading}
-                >
-                  {loading ? 'Signing in...' : 'Submit'}
-                </Button>
+                <div className="space-y-4">
+                  <Button
+                    type="submit"
+                    disabled={loading || !email || !password || (authMode === 'register' && !fullName)}
+                    className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        {authMode === 'login' ? 'Signing in...' : 'Creating account...'}
+                      </>
+                    ) : (
+                      authMode === 'login' ? 'Sign In' : 'Create Account'
+                    )}
+                  </Button>
+                  
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200" />
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white text-gray-500">
+                        {authMode === 'login' ? 'New to Stokku?' : 'Already have an account?'}
+                      </span>
+                    </div>
+                  </div>
 
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">
-                    Don't have an account?{' '}
-                    <Link href="/auth/register" className="text-blue-600 hover:text-blue-500 font-medium">
-                      Register here
-                    </Link>
-                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setAuthMode(authMode === 'login' ? 'register' : 'login')
+                      // Clear form fields when switching modes
+                      setEmail('')
+                      setPassword('')
+                      setFullName('')
+                    }}
+                    className="w-full h-12 border-2 border-gray-200 hover:border-gray-300 text-gray-700 font-medium rounded-lg transition-all duration-200"
+                  >
+                    {authMode === 'login' ? 'Create New Account' : 'Sign In Instead'}
+                  </Button>
                 </div>
               </form>
             </CardContent>
           </Card>
+
+          {/* Security Badge */}
+          <div className="flex justify-center">
+            <Badge className="bg-green-50 text-green-700 border-green-200 px-3 py-1">
+              <Shield className="w-3 h-3 mr-1" />
+              {authMode === 'login' 
+                ? 'Secured with enterprise-grade encryption' 
+                : 'Your data is encrypted and secure'
+              }
+            </Badge>
+          </div>
         </div>
       </div>
 
@@ -227,15 +328,14 @@ export function LandingPage() {
 
             {/* Call to Action */}
             <div className="pt-8">
-              <Link href="/auth/register">
-                <Button 
-                  size="lg" 
-                  className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 rounded-lg font-medium group"
-                >
-                  Get Started Today
-                  <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
+              <Button 
+                size="lg" 
+                onClick={() => setAuthMode('register')}
+                className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3 rounded-lg font-medium group"
+              >
+                Get Started Today
+                <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
             </div>
           </div>
         </div>
