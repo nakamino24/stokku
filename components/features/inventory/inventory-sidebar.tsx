@@ -43,6 +43,7 @@ interface InventorySidebarProps {
   onViewChange: (view: string) => void;
   products: Product[];
   onAddProduct: () => void;
+  onFindProduct?: () => void;
 }
 
 const CollapsibleSidebarGroup = ({
@@ -97,6 +98,7 @@ export function InventorySidebar({
   onViewChange,
   products,
   onAddProduct,
+  onFindProduct,
 }: InventorySidebarProps) {
   const lowStockCount = products.filter((p) => p.status === "Low Stock").length
   const outOfStockCount = products.filter((p) => p.status === "Out of Stock").length
@@ -136,7 +138,8 @@ export function InventorySidebar({
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-pointer"
+              onClick={() => window.location.href = '/'}
             >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Package className="size-4" />
@@ -180,7 +183,7 @@ export function InventorySidebar({
             <Plus className="h-4 w-4 mr-2" />
             Add Product
           </Button>
-          <Button size="sm" variant="outline" className="w-full">
+          <Button size="sm" variant="outline" className="w-full" onClick={() => onViewChange('find-product')}>
             <Search className="h-4 w-4 mr-2" />
             Find Product
           </Button>

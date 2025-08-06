@@ -1,10 +1,11 @@
 "use client"
 
 import { Product } from "@/types/product.types"
-import { ProductsTable } from "@/components/features/products"
+import { ProductsTable, FindProductPage } from "@/components/features/products"
 import { DashboardOverview } from "@/components/features/dashboard"
-import { ReportsView } from "@/components/features/reports"
+import { ReportsView, SalesReportPage, StockMovementPage } from "@/components/features/reports"
 import { ImportExportManager } from "@/components/features/common"
+import { SettingsPage } from "@/components/features/settings"
 
 interface InventoryContentProps {
   products: Product[];
@@ -52,6 +53,10 @@ export function InventoryContent({
         return "Supplier Report"
       case "import-data":
         return "Import & Export"
+      case "find-product":
+        return "Find Products"
+      case "settings":
+        return "Settings"
       default:
         return "Inventory Management"
     }
@@ -88,6 +93,44 @@ export function InventoryContent({
           products={products}
           onImport={onImport || (() => {})}
         />
+      </main>
+    )
+  }
+
+  if (currentView === "find-product") {
+    return (
+      <main className="flex-1 overflow-auto p-6">
+        <FindProductPage 
+          products={products}
+          onViewProduct={onViewProduct}
+          onEditProduct={onEditProduct}
+          onDeleteProduct={onDeleteProduct}
+          canEdit={true}
+        />
+      </main>
+    )
+  }
+
+  if (currentView === "sales-report") {
+    return (
+      <main className="flex-1 overflow-auto p-6">
+        <SalesReportPage products={products} />
+      </main>
+    )
+  }
+
+  if (currentView === "stock-movement") {
+    return (
+      <main className="flex-1 overflow-auto p-6">
+        <StockMovementPage products={products} />
+      </main>
+    )
+  }
+
+  if (currentView === "settings") {
+    return (
+      <main className="flex-1 overflow-auto p-6">
+        <SettingsPage />
       </main>
     )
   }

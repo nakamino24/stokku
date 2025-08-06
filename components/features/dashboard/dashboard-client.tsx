@@ -95,7 +95,7 @@ export function DashboardClient() {
     try {
       await signOut()
       toast.success('Logged out successfully')
-      router.push('/auth/login')
+      router.push('/')
       router.refresh()
     } catch (error: any) {
       toast.error(error.message || 'Error logging out')
