@@ -3,6 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Package, TrendingDown, TrendingUp, DollarSign } from "lucide-react"
+import { SalesChart } from './SalesChart'
 
 interface DashboardOverviewProps {
   products: any[]
@@ -22,6 +23,9 @@ export function DashboardOverview({ products }: DashboardOverviewProps) {
 
   return (
     <div className="space-y-6">
+      {/* Sales Chart */}
+      <SalesChart className="w-full" />
+      
       {/* Trending Product */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
