@@ -50,19 +50,8 @@ const defaultFormData: ProductFormData = {
   barcode: '',
 }
 
-const categories = [
-  'Electronics',
-  'Food & Beverage',
-  'Office Supplies',
-  'Sports & Fitness',
-  'Clothing',
-  'Books',
-  'Home & Garden',
-  'Automotive',
-  'Health & Beauty',
-  'Toys & Games',
-  'Other'
-]
+// Categories will be loaded dynamically from the database
+// This ensures consistency between frontend and backend
 
 export function ProductFormModal({ 
   isOpen, 
@@ -75,7 +64,17 @@ export function ProductFormModal({
   const [formData, setFormData] = useState<ProductFormData>(defaultFormData)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Partial<ProductFormData>>({})
+  const [availableCategories, setAvailableCategories] = useState<string[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(false)
 
+  // Load available categories when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadCategories()
+    }
+  }, [isOpen])
+
+  // Load form data when product or mode changes
   useEffect(() => {
     if (product && mode === 'edit') {
       // Handle category and supplier that might be objects
@@ -100,6 +99,28 @@ export function ProductFormModal({
     }
     setErrors({})
   }, [product, mode, isOpen])
+
+  const loadCategories = async () => {
+    setCategoriesLoading(true)
+    try {
+      const categories = await DataService.getAllCategories()
+      setAvailableCategories(categories.map(cat => cat.name))
+    } catch (error) {
+      console.error('Failed to load categories:', error)
+      toast.error('Failed to load categories. Please try again.')
+      // Fallback to default categories if loading fails
+      setAvailableCategories([
+        'Electronics',
+        'Food & Beverage', 
+        'Office Supplies',
+        'Sports & Fitness',
+        'Clothing',
+        'Home & Garden'
+      ])
+    } finally {
+      setCategoriesLoading(false)
+    }
+  }
 
   const generateSKU = () => {
     const timestamp = Date.now().toString().slice(-6)
@@ -172,11 +193,15 @@ export function ProductFormModal({
         const categories = await DataService.getAllCategories()
         const selectedCategory = categories.find(cat => cat.name === formData.category)
         
+        if (!selectedCategory) {
+          throw new Error(`Category "${formData.category}" not found. Please select a valid category.`)
+        }
+        
         await DataService.createProduct({
           name: formData.name,
           sku: formData.sku,
           description: formData.description,
-          category_id: selectedCategory?.id || '',
+          category_id: selectedCategory.id,
           quantity: formData.quantity,
           min_quantity: formData.minStockLevel,
           price: formData.price,
@@ -188,6 +213,10 @@ export function ProductFormModal({
         // Need to find category_id for the selected category name
         const categories = await DataService.getAllCategories()
         const selectedCategory = categories.find(cat => cat.name === formData.category)
+        
+        if (!selectedCategory && formData.category !== (typeof product.category === 'object' ? product.category?.name : product.category)) {
+          throw new Error(`Category "${formData.category}" not found. Please select a valid category.`)
+        }
         
         await DataService.updateProduct(product.id, {
           name: formData.name,
@@ -308,11 +337,21 @@ export function ProductFormModal({
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
                         <SelectContent>
-                          {categories.map((category) => (
-                            <SelectItem key={category} value={category}>
-                              {category}
+                          {categoriesLoading ? (
+                            <SelectItem value="" disabled>
+                              Loading categories...
                             </SelectItem>
-                          ))}
+                          ) : availableCategories.length > 0 ? (
+                            availableCategories.map((category) => (
+                              <SelectItem key={category} value={category}>
+                                {category}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="" disabled>
+                              No categories available
+                            </SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                       {errors.category && (

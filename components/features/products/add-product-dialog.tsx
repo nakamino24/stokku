@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -15,6 +15,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DataService } from '@/lib/data-service'
+import { toast } from 'sonner'
 
 interface AddProductDialogProps {
   open: boolean
@@ -31,6 +33,37 @@ export function AddProductDialog({ open, onOpenChange, onAddProduct }: AddProduc
     price: "",
     supplier: "",
   })
+  const [availableCategories, setAvailableCategories] = useState<string[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(false)
+
+  // Load available categories when modal opens
+  useEffect(() => {
+    if (open) {
+      loadCategories()
+    }
+  }, [open])
+
+  const loadCategories = async () => {
+    setCategoriesLoading(true)
+    try {
+      const categories = await DataService.getAllCategories()
+      setAvailableCategories(categories.map(cat => cat.name))
+    } catch (error) {
+      console.error('Failed to load categories:', error)
+      toast.error('Failed to load categories. Please try again.')
+      // Fallback to default categories if loading fails
+      setAvailableCategories([
+        'Electronics',
+        'Food & Beverage',
+        'Office Supplies', 
+        'Sports & Fitness',
+        'Clothing',
+        'Home & Garden'
+      ])
+    } finally {
+      setCategoriesLoading(false)
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -103,12 +136,21 @@ export function AddProductDialog({ open, onOpenChange, onAddProduct }: AddProduc
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Electronics">Electronics</SelectItem>
-                  <SelectItem value="Food & Beverage">Food & Beverage</SelectItem>
-                  <SelectItem value="Office Supplies">Office Supplies</SelectItem>
-                  <SelectItem value="Sports & Fitness">Sports & Fitness</SelectItem>
-                  <SelectItem value="Home & Garden">Home & Garden</SelectItem>
-                  <SelectItem value="Clothing">Clothing</SelectItem>
+                  {categoriesLoading ? (
+                    <SelectItem value="" disabled>
+                      Loading categories...
+                    </SelectItem>
+                  ) : availableCategories.length > 0 ? (
+                    availableCategories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>
+                      No categories available
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
