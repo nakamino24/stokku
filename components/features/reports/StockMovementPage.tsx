@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Product } from '@/types/product.types'
 import { 
   Select,
   SelectContent,
@@ -11,34 +12,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table'
-import { 
-  TrendingUp, 
-  TrendingDown,
-  Truck,
+import {
+  Package,
   Package2,
+  Truck,
   CheckCircle,
   Clock,
-  AlertCircle,
+  AlertTriangle,
+  Download,
+  TrendingUp,
+  TrendingDown,
   ArrowRight,
   ArrowLeft,
-  Calendar
+  Calendar,
+  AlertCircle
 } from 'lucide-react'
-import { Product } from '@/types/product.types'
+import { toast } from 'sonner'
+import { DataService } from '@/lib/data-service'
 
 interface StockMovementPageProps {
   products: Product[]
 }
 
-// Sample stock movement data
-const stockMovements = [
+interface StockMovement {
+  id: number
+  productName: string
+  sku: string
+  type: 'inbound' | 'outbound'
+  quantity: number
+  status: 'pending' | 'in-transit' | 'delivered' | 'cancelled' | 'received'
+  supplier?: string
+  expectedDate: string
+  actualDate?: string | null
+  trackingNumber?: string
+  reason: string
+  notes?: string
+  created_at?: string
+}
+
+// Default sample stock movement data as fallback
+const defaultStockMovements: StockMovement[] = [
   {
     id: 1,
     productName: 'Wireless Headphones',
@@ -116,6 +137,52 @@ const stockMovements = [
 export function StockMovementPage({ products }: StockMovementPageProps) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Load stock movements from localStorage and DataService
+  useEffect(() => {
+    loadStockMovements()
+  }, [])
+
+  const loadStockMovements = async () => {
+    setLoading(true)
+    try {
+      // Load from admin-created movements in localStorage
+      const adminMovements = JSON.parse(localStorage.getItem('stockMovements') || '[]')
+      
+      // Load from DataService (database or fallback)
+      let serviceMovements: any[] = []
+      try {
+        serviceMovements = await DataService.getStockMovements()
+      } catch (error) {
+        console.error('Error loading stock movements from service:', error)
+      }
+
+      // Combine admin movements with service movements, prioritizing admin movements
+      let allMovements = [...adminMovements]
+      
+      // Add service movements, avoiding duplicates
+      serviceMovements.forEach(movement => {
+        if (!allMovements.find(m => m.id === movement.id)) {
+          allMovements.push(movement)
+        }
+      })
+
+      // If no movements found, use default sample data
+      if (allMovements.length === 0) {
+        allMovements = defaultStockMovements
+      }
+
+      setStockMovements(allMovements)
+    } catch (error) {
+      console.error('Error loading stock movements:', error)
+      toast.error('Failed to load stock movements')
+      setStockMovements(defaultStockMovements)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Filter movements based on selected filters
   const filteredMovements = stockMovements.filter(movement => {
