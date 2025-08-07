@@ -124,13 +124,23 @@ export class SupabaseService {
 
   // Categories
   static async getAllCategories() {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name')
-    
-    if (error) throw error
-    return data
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name')
+      
+      if (error) {
+        console.error('Supabase categories error:', error)
+        throw error
+      }
+      
+      console.log('Supabase categories loaded:', data?.length || 0)
+      return data || []
+    } catch (error) {
+      console.error('Failed to get categories from Supabase:', error)
+      throw error
+    }
   }
 
   static async createCategory(category: Omit<Category, 'id' | 'created_at' | 'updated_at'>) {

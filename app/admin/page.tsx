@@ -1,6 +1,7 @@
 'use client'
 
 import { DatabaseInitializer } from '@/components/features/admin/DatabaseInitializer'
+import { CategoriesDebug } from '@/components/debug/CategoriesDebug'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Settings, Database, Users, FileText } from 'lucide-react'
@@ -62,6 +63,9 @@ export default function AdminPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Debug Component */}
+        <CategoriesDebug />
 
         {/* Database Initializer */}
         <div className="flex justify-center">

@@ -115,14 +115,20 @@ export class DataService {
 
   // Category operations
   static async getAllCategories(): Promise<Category[]> {
+    console.log('DataService.getAllCategories - USE_SUPABASE:', USE_SUPABASE)
+    
     if (USE_SUPABASE) {
       try {
+        console.log('Attempting to fetch categories from Supabase...')
         const categories = await SupabaseService.getAllCategories()
+        console.log('Categories from Supabase:', categories?.length || 0, categories)
+        
         // If Supabase returns empty categories, fall back to sample data
-        if (categories.length === 0) {
+        if (!categories || categories.length === 0) {
           console.warn('No categories found in Supabase, using sample categories')
           return sampleCategories
         }
+        console.log('Returning Supabase categories:', categories)
         return categories
       } catch (error) {
         console.error('Error fetching categories from Supabase, using sample categories:', error)
@@ -130,6 +136,7 @@ export class DataService {
       }
     }
     
+    console.log('Using sample categories (not using Supabase)')
     return Promise.resolve(sampleCategories)
   }
 
