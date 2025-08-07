@@ -137,7 +137,7 @@ export function AddProductDialog({ open, onOpenChange, onAddProduct }: AddProduc
                 </SelectTrigger>
                 <SelectContent>
                   {categoriesLoading ? (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="loading" disabled>
                       Loading categories...
                     </SelectItem>
                   ) : availableCategories.length > 0 ? (
@@ -147,7 +147,7 @@ export function AddProductDialog({ open, onOpenChange, onAddProduct }: AddProduc
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="no-categories" disabled>
                       No categories available
                     </SelectItem>
                   )}

@@ -146,12 +146,12 @@ export function ProductSearchFilter({
       {/* Filters Row */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Category Filter */}
-        <Select value={filters.category || ''} onValueChange={(value) => handleFilterChange('category', value || undefined)}>
+        <Select value={filters.category || ''} onValueChange={(value) => handleFilterChange('category', value === 'all-categories' ? undefined : value)}>
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value=" ">All Categories</SelectItem>
+            <SelectItem value="all-categories">All Categories</SelectItem>
             {categories.map((category, index) => (
               <SelectItem key={`category-${category}-${index}`} value={category}>
                 {category}
@@ -161,12 +161,12 @@ export function ProductSearchFilter({
         </Select>
 
         {/* Status Filter */}
-        <Select value={filters.status || ''} onValueChange={(value) => handleFilterChange('status', value || undefined)}>
+        <Select value={filters.status || ''} onValueChange={(value) => handleFilterChange('status', value === 'all-status' ? undefined : value)}>
           <SelectTrigger className="w-[130px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value=" ">All Status</SelectItem>
+            <SelectItem value="all-status">All Status</SelectItem>
             {statuses.map((status, index) => (
               <SelectItem key={`status-${status}-${index}`} value={status}>
                 {status}
@@ -176,12 +176,12 @@ export function ProductSearchFilter({
         </Select>
 
         {/* Supplier Filter */}
-        <Select value={filters.supplier || ''} onValueChange={(value) => handleFilterChange('supplier', value || undefined)}>
+        <Select value={filters.supplier || ''} onValueChange={(value) => handleFilterChange('supplier', value === 'all-suppliers' ? undefined : value)}>
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Supplier" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value=" ">All Suppliers</SelectItem>
+            <SelectItem value="all-suppliers">All Suppliers</SelectItem>
             {suppliers.map((supplier, index) => (
               <SelectItem key={`supplier-${supplier}-${index}`} value={supplier}>
                 {supplier}

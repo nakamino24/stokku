@@ -338,7 +338,7 @@ export function ProductFormModal({
                         </SelectTrigger>
                         <SelectContent>
                           {categoriesLoading ? (
-                            <SelectItem value="" disabled>
+                            <SelectItem value="loading" disabled>
                               Loading categories...
                             </SelectItem>
                           ) : availableCategories.length > 0 ? (
@@ -348,7 +348,7 @@ export function ProductFormModal({
                               </SelectItem>
                             ))
                           ) : (
-                            <SelectItem value="" disabled>
+                            <SelectItem value="no-categories" disabled>
                               No categories available
                             </SelectItem>
                           )}
