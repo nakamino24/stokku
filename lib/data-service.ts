@@ -326,8 +326,44 @@ export class DataService {
       return await SupabaseService.getAllSuppliers()
     }
     
-    // Return sample data for development (fallback)
-    return Promise.resolve([])
+    // Return sample suppliers for development
+    const sampleSuppliers: Supplier[] = [
+      {
+        id: "sup-1",
+        name: "TechCorp",
+        contact: "John Smith",
+        email: "john@techcorp.com",
+        address: "123 Tech Street, Silicon Valley, CA",
+        categories: "Electronics, Gadgets",
+        notes: "Reliable electronics supplier",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: "sup-2",
+        name: "Bean Masters",
+        contact: "Maria Garcia",
+        email: "maria@beanmasters.com",
+        address: "456 Coffee Ave, Portland, OR",
+        categories: "Food & Beverage",
+        notes: "Premium coffee supplier",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: "sup-3",
+        name: "Office Plus",
+        contact: "David Wilson",
+        email: "david@officeplus.com",
+        address: "789 Business Blvd, New York, NY",
+        categories: "Office Supplies",
+        notes: "Complete office solutions",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+    ]
+    
+    return Promise.resolve(sampleSuppliers)
   }
 
   static async getSupplierById(id: string): Promise<Supplier | null> {
@@ -352,7 +388,17 @@ export class DataService {
       }
     }
     
-    return Promise.resolve(null)
+    // Simulate creation for development
+    const newSupplier: Supplier = {
+      ...supplier,
+      id: `sup-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    
+    // In sample mode, we just return the created supplier
+    // In a real app, this would be stored in localStorage or state management
+    return Promise.resolve(newSupplier)
   }
 
   static async updateSupplier(id: string, updates: Omit<UpdateSupplierRequest, 'id'>): Promise<Supplier | null> {

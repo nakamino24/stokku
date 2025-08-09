@@ -307,9 +307,11 @@ export function AdminDashboard() {
     toast.success('System data exported successfully')
   }
 
-  const isAdmin = profile?.role === 'admin'
+  // Check if we're using Supabase or sample data mode
+  const isUsingSupabase = DataService.isUsingSupabase()
+  const isAdmin = isUsingSupabase ? profile?.role === 'admin' : true // Allow access in sample data mode
 
-  if (!isAdmin) {
+  if (isUsingSupabase && !isAdmin) {
     return (
       <div className="container mx-auto py-8 px-4">
         <div className="max-w-md mx-auto text-center">
