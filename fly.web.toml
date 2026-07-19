@@ -1,0 +1,23 @@
+app = "stokku-web"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+  target = "web"
+
+[http_service]
+  internal_port = 3002
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3002"
+  NEXT_PUBLIC_API_URL = "https://stokku-api.fly.dev"
