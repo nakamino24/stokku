@@ -2,24 +2,47 @@ import express, { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 import { securityMiddleware, corsMiddleware, apiLimiter, authLimiter } from './middleware/security';
 import { requestIdMiddleware } from './middleware/requestId';
-import authRoutes from './routes/auth';
-import projectRoutes from './routes/projects';
-import taskRoutes from './routes/tasks';
-import dashboardRoutes from './routes/dashboard';
-import categoryRoutes from './routes/categories';
-import productRoutes from './routes/products';
-import supplierRoutes from './routes/suppliers';
-import warehouseRoutes from './routes/warehouses';
-import stockRoutes from './routes/stock';
 import { errorHandler } from './middleware/errorHandler';
 import { prisma } from '@stokku/database';
 import { logger } from './utils/logger';
-import dotenv from 'dotenv';
+import { config } from './config';
 
-dotenv.config();
+import authRoutes from './modules/auth/auth.routes';
+import dashboardRoutes from './modules/dashboard/dashboard.routes';
+import productRoutes from './modules/products/products.routes';
+import categoryRoutes from './modules/categories/categories.routes';
+import supplierRoutes from './modules/suppliers/suppliers.routes';
+import customerRoutes from './modules/customers/customers.routes';
+import warehouseRoutes from './modules/warehouses/warehouses.routes';
+import stockRoutes from './modules/stock/stock.routes';
+import purchaseOrderRoutes from './modules/purchase-orders/purchase-orders.routes';
+import salesOrderRoutes from './modules/sales-orders/sales-orders.routes';
+import reportRoutes from './modules/reports/reports.routes';
+import userRoutes from './modules/users/users.routes';
+import roleRoutes from './modules/roles/roles.routes';
+import settingsRoutes from './modules/settings/settings.routes';
+
+function validateConfig() {
+  const errors: string[] = [];
+  if (!config.jwt.accessSecret || config.jwt.accessSecret.length < 16) {
+    errors.push('ACCESS_TOKEN_SECRET must be at least 16 characters');
+  }
+  if (!config.jwt.refreshSecret || config.jwt.refreshSecret.length < 16) {
+    errors.push('REFRESH_TOKEN_SECRET must be at least 16 characters');
+  }
+  if (config.cors.origins.length === 0 || config.cors.origins[0] === '') {
+    errors.push('CORS_ORIGINS must specify at least one origin');
+  }
+  if (errors.length > 0) {
+    logger.error('Configuration validation failed', { errors });
+    throw new Error(`Configuration errors:\n${errors.join('\n')}`);
+  }
+}
+
+validateConfig();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = config.port;
 
 app.use(securityMiddleware);
 app.use(corsMiddleware);
@@ -28,39 +51,44 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-app.use((req: Request, res: Response, next: NextFunction) => {
+app.use((req: Request, _res: Response, next: NextFunction) => {
   const requestId = req.headers['x-request-id'] as string;
-  logger.info(`${req.method} ${req.path}`, {
-    requestId,
-    query: req.query,
-    ip: req.ip,
-    userAgent: req.get('user-agent'),
-  });
-
-  const originalJson = res.json.bind(res);
-  res.json = function (body: unknown) {
-    logger.info(`${req.method} ${req.path} ${res.statusCode}`, { requestId, statusCode: res.statusCode });
-    return originalJson(body);
-  };
-
+  logger.info(`${req.method} ${req.path}`, { requestId, ip: req.ip });
   next();
 });
 
-app.get('/health', (_req: Request, res: Response) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+app.get('/health', async (_req: Request, res: Response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+      uptime: process.uptime(),
+    });
+  } catch {
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+    });
+  }
 });
 
-app.use('/auth', authLimiter, authRoutes);
-
-app.use(apiLimiter);
-app.use('/projects', projectRoutes);
-app.use('/tasks', taskRoutes);
-app.use('/dashboard', dashboardRoutes);
-app.use('/inventory/categories', categoryRoutes);
-app.use('/inventory/products', productRoutes);
-app.use('/inventory/suppliers', supplierRoutes);
-app.use('/inventory/warehouses', warehouseRoutes);
-app.use('/inventory/stock', stockRoutes);
+app.use('/api/v1/auth', authLimiter, authRoutes);
+app.use('/api/v1/dashboard', apiLimiter, dashboardRoutes);
+app.use('/api/v1/products', apiLimiter, productRoutes);
+app.use('/api/v1/categories', apiLimiter, categoryRoutes);
+app.use('/api/v1/suppliers', apiLimiter, supplierRoutes);
+app.use('/api/v1/customers', apiLimiter, customerRoutes);
+app.use('/api/v1/warehouses', apiLimiter, warehouseRoutes);
+app.use('/api/v1/stock', apiLimiter, stockRoutes);
+app.use('/api/v1/purchase-orders', apiLimiter, purchaseOrderRoutes);
+app.use('/api/v1/sales-orders', apiLimiter, salesOrderRoutes);
+app.use('/api/v1/reports', apiLimiter, reportRoutes);
+app.use('/api/v1/users', apiLimiter, userRoutes);
+app.use('/api/v1/roles', apiLimiter, roleRoutes);
+app.use('/api/v1/settings', apiLimiter, settingsRoutes);
 
 app.use('*', (_req: Request, res: Response) => {
   res.status(404).json({ error: 'Not Found', code: 'NOT_FOUND' });
@@ -69,23 +97,30 @@ app.use('*', (_req: Request, res: Response) => {
 app.use(errorHandler);
 
 const server = app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`, { env: process.env.NODE_ENV });
+  logger.info(`Server running on port ${PORT}`, { env: config.nodeEnv });
 });
 
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down...');
-  server.close(() => {
-    prisma.$disconnect();
+function gracefulShutdown(signal: string) {
+  logger.info(`${signal} received, shutting down gracefully...`);
+  server.close(async () => {
+    await prisma.$disconnect();
+    logger.info('Server shut down complete');
     process.exit(0);
   });
-});
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000).unref();
+}
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down...');
-  server.close(() => {
-    prisma.$disconnect();
-    process.exit(0);
-  });
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception', { message: err.message, stack: err.stack });
+  gracefulShutdown('uncaughtException');
+});
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled rejection', { reason: String(reason) });
 });
 
 export default app;

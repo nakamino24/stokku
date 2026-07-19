@@ -2,7 +2,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 
-const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',');
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002').split(',');
 
 export const securityMiddleware = helmet({
   contentSecurityPolicy: false,

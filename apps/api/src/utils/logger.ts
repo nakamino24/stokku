@@ -12,17 +12,6 @@ function formatTimestamp(): string {
   return new Date().toISOString();
 }
 
-function stringify(value: unknown): string {
-  if (value instanceof Error) {
-    return JSON.stringify({ message: value.message, stack: value.stack, name: value.name });
-  }
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
 function log(level: string, levelValue: LogLevel, message: string, meta?: unknown): void {
   if (levelValue < CURRENT_LEVEL) return;
 

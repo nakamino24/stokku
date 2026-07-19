@@ -1,216 +1,254 @@
-// Prisma schema for Stokku database
-// See https://pris.ly/d/prisma-schema for more information
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String?
-  googleId      String?  @unique
-  name          String
-  avatarUrl     String?
-  role          String   @default("user")
-  emailVerified Boolean  @default(false)
-  emailVerificationToken String?
-  emailVerificationExpires DateTime?
-  passwordResetToken String?
-  passwordResetExpires DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  lastLoginAt   DateTime?
-
-  ownedWorkspaces   Workspace[]   @relation("workspaceOwner")
-  ownedProjects     Project[]     @relation("projectOwner")
-  assignedTasks     Task[]        @relation("assignee")
-  reportedTasks     Task[]        @relation("reporter")
-  WorkspaceMember   WorkspaceMember[]
-  Comment           Comment[]
-  Attachment        Attachment[]
-  Notification      Notification[]
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  INVENTORY_MANAGER
+  WAREHOUSE_STAFF
+  CASHIER
+  VIEWER
 }
 
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+}
 
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
 
-model Workspace {
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  PICKING
+  SHIPPING
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  TRANSFER
+  RETURN
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  DISCONTINUED
+}
+
+model Organization {
   id        String   @id @default(uuid())
   name      String
-  description String?
-  ownerId   String
-  owner     User     @relation("workspaceOwner", fields: [ownerId], references: [id])
-  visibility String   @default("private")
-  settings  String   @default("{}")
+  slug      String   @unique
+  email     String?
+  phone     String?
+  address   String?
+  city      String?
+  country   String?
+  currency  String   @default("USD")
+  timezone  String   @default("UTC")
+  logoUrl   String?
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  WorkspaceMember WorkspaceMember[]
-  Project         Project[]
-  categories      Category[]
-  products        Product[]
-  suppliers       Supplier[]
-  warehouses      Warehouse[]
+  ownerId String? @unique
+  owner   User?   @relation("organizationOwner", fields: [ownerId], references: [id])
+
+  members    OrganizationMember[]
+  categories Category[]
+  products   Product[]
+  suppliers  Supplier[]
+  customers  Customer[]
+  warehouses Warehouse[]
+  stockLevels StockLevel[]
+  stockMovements StockMovement[]
+  purchaseOrders PurchaseOrder[]
+  salesOrders    SalesOrder[]
+  users      User[]
+  roles      Role[]
+  auditLogs  AuditLog[]
 }
 
-model WorkspaceMember {
+model User {
   id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  workspaceId String
-  workspace Workspace  @relation(fields: [workspaceId], references: [id])
-  role      String   @default("member")
-  joinedAt  DateTime @default(now())
-
-  @@unique([userId, workspaceId])
-}
-
-model Project {
-  id          String   @id @default(uuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  ownerId     String
-  owner       User     @relation("projectOwner", fields: [ownerId], references: [id])
-  name        String
-  description String?
-  status      String   @default("active")
-  startDate   DateTime?
-  endDate     DateTime?
-  settings    String   @default("{}")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  Task        Task[]
-}
-
-model Task {
-  id          String   @id @default(uuid())
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id])
-  assigneeId  String?
-  assignee    User?    @relation("assignee", fields: [assigneeId], references: [id])
-  reporterId  String
-  reporter    User     @relation("reporter", fields: [reporterId], references: [id])
-  title       String
-  description String?
-  status      String   @default("todo")
-  priority    String   @default("medium")
-  dueDate     DateTime?
-  estimatedHours Int?
-  actualHours   Int?
-  position    Int      @default(0)
-  settings    String   @default("{}")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  Comment     Comment[]
-  Attachment  Attachment[]
-}
-
-model Comment {
-  id        String   @id @default(uuid())
-  taskId    String
-  task      Task     @relation(fields: [taskId], references: [id])
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  content   String
-  parentId  String?
-  parent    Comment? @relation("replies", fields: [parentId], references: [id])
-  children  Comment[] @relation("replies")
+  email     String   @unique
+  passwordHash String?
+  googleId  String?  @unique
+  name      String
+  avatarUrl String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  emailVerified     Boolean  @default(false)
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
+  lastLoginAt   DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], map: "user_org_fkey")
+  role           OrganizationRole @default(VIEWER)
+
+  ownedOrganization Organization? @relation("organizationOwner")
+
+  createdStockMovements StockMovement[] @relation("createdBy")
+  createdPurchaseOrders PurchaseOrder[] @relation("poCreatedBy")
+  createdSalesOrders    SalesOrder[]    @relation("soCreatedBy")
+  auditLogs    AuditLog[]
+  organizationMembers OrganizationMember[]
+
+  @@index([organizationId])
+  @@index([email])
 }
 
-model Attachment {
-  id        String   @id @default(uuid())
-  taskId    String
-  task      Task     @relation(fields: [taskId], references: [id])
-  uploadedBy String
-  uploader  User     @relation(fields: [uploadedBy], references: [id])
-  filename  String
-  fileUrl   String
-  fileSize  Int?
-  mimeType  String?
-  createdAt DateTime @default(now())
+model OrganizationMember {
+  id             String           @id @default(uuid())
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           OrganizationRole @default(VIEWER)
+  joinedAt       DateTime         @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
 }
 
-model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  type      String
-  entityType String
-  entityId  String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+model Role {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  slug           String
+  description    String?
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  permissions RolePermission[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model RolePermission {
+  id        String @id @default(uuid())
+  roleId    String
+  role      Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission String // e.g. "products:create", "products:read", "products:update", "products:delete"
+
+  @@unique([roleId, permission])
+  @@index([roleId])
 }
 
 model Category {
-  id          String   @id @default(uuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  parentId    String?
-  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children    Category[] @relation("CategoryHierarchy")
-  name        String
-  slug        String
-  description String?
-  imageUrl    String?
-  color       String?
-  sortOrder   Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String    @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parentId       String?
+  parent         Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children       Category[] @relation("CategoryHierarchy")
+  name           String
+  slug           String
+  description    String?
+  imageUrl       String?
+  color          String?
+  sortOrder      Int       @default(0)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  products    Product[]
+  products Product[]
 
-  @@unique([workspaceId, slug])
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([parentId])
 }
 
 model Product {
-  id          String   @id @default(uuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  categoryId  String?
-  category    Category? @relation(fields: [categoryId], references: [id])
-  name        String
-  description String?
-  baseUom     String   @default("pcs")
-  status      String   @default("active")
-  tags        String   @default("[]")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String        @id @default(uuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categoryId     String?
+  category       Category?     @relation(fields: [categoryId], references: [id])
+  name           String
+  sku            String?
+  barcode        String?
+  description    String?
+  unitPrice      Decimal       @default(0)
+  costPrice      Decimal       @default(0)
+  taxRate        Decimal       @default(0)
+  unit           String        @default("pcs")
+  minStock       Int           @default(0)
+  maxStock       Int?
+  imageUrl       String?
+  weight         Decimal?
+  weightUnit     String        @default("kg")
+  isActive       Boolean       @default(true)
+  status         ProductStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   variants    ProductVariant[]
   suppliers   ProductSupplier[]
+  stockLevels StockLevel[]
+  movements   StockMovement[]
+  poItems     PurchaseOrderItem[]
+  soItems     SalesOrderItem[]
+
+  @@unique([organizationId, sku])
+  @@index([organizationId])
+  @@index([categoryId])
+  @@index([barcode])
 }
 
 model ProductVariant {
   id         String  @id @default(uuid())
   productId  String
   product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  sku        String
   name       String
+  sku        String?
   barcode    String?
   options    String  @default("{}")
-  price      Float?
-  costPrice  Float?
+  unitPrice  Decimal @default(0)
+  costPrice  Decimal @default(0)
   imageUrl   String?
   sortOrder  Int     @default(0)
   isActive   Boolean @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([sku, productId])
-  @@index([productId])
-
   stockLevels StockLevel[]
   movements   StockMovement[]
+  poItems     PurchaseOrderItem[]
+  soItems     SalesOrderItem[]
+
+  @@unique([sku, productId])
+  @@index([productId])
+  @@index([barcode])
 }
 
 model ProductSupplier {
@@ -222,7 +260,7 @@ model ProductSupplier {
   supplierSku String?
   leadTimeDays Int?
   moq         Int?
-  unitCost    Float?
+  unitCost    Decimal?
   isPreferred Boolean @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -232,85 +270,286 @@ model ProductSupplier {
 }
 
 model Supplier {
-  id          String   @id @default(uuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  name        String
-  email       String?
-  phone       String?
-  address     String?
-  status      String   @default("active")
-  paymentTerms String?
-  currency    String   @default("USD")
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String         @id @default(uuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  contactPerson  String?
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  country        String?
+  taxId          String?
+  paymentTerms   String?
+  currency       String         @default("USD")
+  notes          String?
+  status         SupplierStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  products    ProductSupplier[]
+  products      ProductSupplier[]
+  purchaseOrders PurchaseOrder[]
 
-  @@index([workspaceId])
+  @@index([organizationId])
+  @@index([name])
+}
+
+model Customer {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  country        String?
+  taxId          String?
+  notes          String?
+  creditLimit    Decimal?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  salesOrders SalesOrder[]
+
+  @@index([organizationId])
+  @@index([email])
 }
 
 model Warehouse {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  code           String
+  description    String?
+  address        String?
+  city           String?
+  country        String?
+  capacity       Int?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  zones         WarehouseZone[]
+  stockLevels   StockLevel[]
+  movements     StockMovement[]
+  fromMovements StockMovement[] @relation("fromWarehouse")
+  toMovements   StockMovement[] @relation("toWarehouse")
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+}
+
+model WarehouseZone {
   id          String   @id @default(uuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
   name        String
   code        String
   description String?
-  address     String?
-  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bins WarehouseBin[]
+
+  @@unique([warehouseId, code])
+  @@index([warehouseId])
+}
+
+model WarehouseBin {
+  id          String   @id @default(uuid())
+  zoneId      String
+  zone        WarehouseZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  code        String
+  maxCapacity Int?
+  description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   stockLevels StockLevel[]
-  movements   StockMovement[]
 
-  @@unique([workspaceId, code])
-  @@index([workspaceId])
+  @@unique([zoneId, code])
+  @@index([zoneId])
 }
 
 model StockLevel {
-  id              String  @id @default(uuid())
-  warehouseId     String
-  warehouse       Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-  variantId       String
-  variant         ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  onHand          Int     @default(0)
-  allocated       Int     @default(0)
-  available       Int     @default(0)
-  reorderPoint    Int?
-  reorderQty      Int?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id          String  @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  binId       String?
+  bin         WarehouseBin? @relation(fields: [binId], references: [id])
+  productId   String
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+  quantity    Int     @default(0)
+  reserved    Int     @default(0)
+  available   Int     @default(0)
+  reorderPoint Int?
+  reorderQty  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  movements       StockMovement[]
+  movements StockMovement[]
 
-  @@unique([warehouseId, variantId])
+  @@unique([warehouseId, productId, variantId, binId])
+  @@index([productId])
   @@index([variantId])
+  @@index([warehouseId])
+  @@index([organizationId])
   @@index([reorderPoint])
 }
 
 model StockMovement {
-  id          String   @id @default(uuid())
-  stockLevelId String
-  stockLevel  StockLevel @relation(fields: [stockLevelId], references: [id])
-  variantId   String
-  variant     ProductVariant @relation(fields: [variantId], references: [id])
-  warehouseId String
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
-  type        String   // receipt, shipment, adjustment, transfer, count
-  quantity    Int      // positive = in, negative = out
-  reference   String?  // PO-123, SO-456, ADJ-789
-  reason      String?
-  beforeQty   Int
-  afterQty    Int
-  userId      String
-  createdAt   DateTime @default(now())
+  id               String             @id @default(uuid())
+  organizationId   String
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type             StockMovementType
+  productId        String
+  product          Product            @relation(fields: [productId], references: [id])
+  variantId        String?
+  variant          ProductVariant?    @relation(fields: [variantId], references: [id])
+  warehouseId      String?
+  warehouse        Warehouse?         @relation(fields: [warehouseId], references: [id])
+  fromWarehouseId  String?
+  fromWarehouse    Warehouse?         @relation("fromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouseId    String?
+  toWarehouse      Warehouse?         @relation("toWarehouse", fields: [toWarehouseId], references: [id])
+  stockLevelId     String?
+  stockLevel       StockLevel?        @relation(fields: [stockLevelId], references: [id])
+  quantity         Int
+  beforeQty        Int                @default(0)
+  afterQty         Int                @default(0)
+  unitPrice        Decimal?
+  totalPrice       Decimal?
+  referenceType    String? // PURCHASE_ORDER, SALES_ORDER, ADJUSTMENT, TRANSFER, RETURN
+  referenceId      String?
+  reference        String?
+  reason           String?
+  note             String?
+  createdById      String
+  createdBy        User               @relation("createdBy", fields: [createdById], references: [id])
+  createdAt        DateTime           @default(now())
 
+  @@index([productId])
   @@index([variantId])
   @@index([warehouseId])
+  @@index([organizationId])
   @@index([createdAt])
-  @@index([stockLevelId])
   @@index([type])
+}
+
+model PurchaseOrder {
+  id             String               @id @default(uuid())
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  poNumber       String
+  supplierId     String
+  supplier       Supplier             @relation(fields: [supplierId], references: [id])
+  status         PurchaseOrderStatus  @default(DRAFT)
+  orderDate      DateTime             @default(now())
+  expectedDate   DateTime?
+  receivedDate   DateTime?
+  subtotal       Decimal              @default(0)
+  taxAmount      Decimal              @default(0)
+  totalAmount    Decimal              @default(0)
+  notes          String?
+  createdById    String
+  createdBy      User                 @relation("poCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  items PurchaseOrderItem[]
+
+  @@unique([organizationId, poNumber])
+  @@index([organizationId])
+  @@index([supplierId])
+  @@index([status])
+}
+
+model PurchaseOrderItem {
+  id              String  @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product     @relation(fields: [productId], references: [id])
+  variantId       String?
+  variant         ProductVariant? @relation(fields: [variantId], references: [id])
+  quantity        Int
+  receivedQty     Int     @default(0)
+  unitPrice       Decimal @default(0)
+  totalPrice      Decimal @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+}
+
+model SalesOrder {
+  id             String            @id @default(uuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  soNumber       String
+  customerId     String
+  customer       Customer          @relation(fields: [customerId], references: [id])
+  status         SalesOrderStatus  @default(DRAFT)
+  orderDate      DateTime          @default(now())
+  subtotal       Decimal           @default(0)
+  taxAmount      Decimal           @default(0)
+  totalAmount    Decimal           @default(0)
+  notes          String?
+  createdById    String
+  createdBy      User              @relation("soCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  items SalesOrderItem[]
+
+  @@unique([organizationId, soNumber])
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model SalesOrderItem {
+  id           String  @id @default(uuid())
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product     @relation(fields: [productId], references: [id])
+  variantId    String?
+  variant      ProductVariant? @relation(fields: [variantId], references: [id])
+  quantity     Int
+  unitPrice    Decimal @default(0)
+  totalPrice   Decimal @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([salesOrderId])
+  @@index([productId])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  action         String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, EXPORT, PRINT
+  entityType     String   // Product, PurchaseOrder, SalesOrder, etc.
+  entityId       String?
+  oldValues      String?  // JSON string of old values
+  newValues      String?  // JSON string of new values
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([entityType])
+  @@index([createdAt])
+  @@index([userId])
 }

@@ -1,0 +1,4 @@
+
+> @stokku/ui@0.1.0 lint D:\stokku\packages\ui
+> eslint . --ext .ts,.tsx
+

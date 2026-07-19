@@ -1,102 +1,106 @@
 import { useState } from 'react';
 import useSWR from 'swr';
 import { FiPlus, FiFolder, FiChevronRight, FiChevronDown } from 'react-icons/fi';
-import { Button } from '@stokku/ui';
+import { api } from '../utils/api';
+import { Button, Card } from '@stokku/ui';
 
-const fetcher = (url: string) => {
-  const token = localStorage.getItem('token');
-  return fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  }).then(async (res) => {
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.error || 'Failed to fetch');
-    }
-    return res.json();
-  });
-};
+const fetcher = (url: string) => api.get<any[]>(url);
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
-interface CategoryNode {
-  id: string;
-  name: string;
-  slug: string;
-  color: string | null;
-  sortOrder: number;
-  children: CategoryNode[];
-}
-
-function CategoryRow({ node, depth = 0 }: { node: CategoryNode; depth?: number }) {
+function CategoryRow({ node, depth = 0, onRefresh }: { node: any; depth?: number; onRefresh: () => void }) {
   const [expanded, setExpanded] = useState(true);
-  const hasChildren = node.children && node.children.length > 0;
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(node.name);
+  const hasChildren = node.children?.length > 0;
+
+  const handleSave = async () => {
+    await api.put(`/categories/${node.id}`, { name });
+    setEditing(false);
+    onRefresh();
+  };
 
   return (
     <>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '10px 16px',
-          paddingLeft: `${16 + depth * 24}px`,
-          borderBottom: '1px solid #f3f4f6',
-          cursor: 'pointer',
-        }}
-        onClick={() => hasChildren && setExpanded(!expanded)}
-      >
+      <div className={`flex items-center gap-2 px-4 py-2.5 border-b border-gray-50 hover:bg-gray-50 group`} style={{ paddingLeft: `${16 + depth * 24}px` }}>
         {hasChildren ? (
-          expanded ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />
+          <button onClick={() => setExpanded(!expanded)} className="text-gray-400">
+            {expanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+          </button>
+        ) : <span className="w-[14px]" />}
+        <FiFolder size={15} color={node.color || '#6366f1'} />
+        {editing ? (
+          <input value={name} onChange={e => setName(e.target.value)}
+            className="text-sm px-2 py-0.5 border border-gray-200 rounded outline-none focus:border-indigo-500"
+            onBlur={handleSave} onKeyDown={e => e.key === 'Enter' && handleSave()} autoFocus />
         ) : (
-          <span style={{ width: '16px' }} />
+          <span className="text-sm font-medium text-gray-800">{node.name}</span>
         )}
-        <FiFolder size={16} color={node.color || '#6366f1'} />
-        <span style={{ fontWeight: 500, color: '#111827' }}>{node.name}</span>
-        <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>/{node.slug}</span>
+        <span className="text-[11px] text-gray-400">/{node.slug}</span>
+        <span className="text-[11px] text-gray-400 ml-auto">{node._count?.products || 0} products</span>
+        <button onClick={() => setEditing(true)}
+          className="text-[11px] text-indigo-500 hover:text-indigo-700 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+          Edit
+        </button>
       </div>
-      {expanded && hasChildren && node.children.map((child) => (
-        <CategoryRow key={child.id} node={child} depth={depth + 1} />
+      {expanded && hasChildren && node.children.map((child: any) => (
+        <CategoryRow key={child.id} node={child} depth={depth + 1} onRefresh={onRefresh} />
       ))}
     </>
   );
 }
 
 export default function CategoriesPage() {
-  const { data, error, isLoading } = useSWR(`${API}/inventory/categories`, fetcher);
+  const { data, error, isLoading, mutate } = useSWR('/categories', fetcher);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    await api.post('/categories', { name: newName.trim() });
+    setNewName('');
+    setShowCreate(false);
+    mutate();
+  };
 
   return (
-    <div style={{ padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Categories</h1>
-        <Button variant="primary" onClick={() => {}}>
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
+          <p className="text-gray-500 text-sm mt-1">Organize your products into categories</p>
+        </div>
+        <Button variant="primary" onClick={() => setShowCreate(true)}>
           <FiPlus size={16} /> New Category
         </Button>
       </div>
 
-      {error && (
-        <div style={{ padding: '16px', backgroundColor: '#fef2f2', color: '#dc2626', borderRadius: '8px' }}>
-          Failed to load categories
-        </div>
+      {showCreate && (
+        <Card className="p-4 mb-4 flex items-center gap-3 animate-fade-in">
+          <input value={newName} onChange={e => setNewName(e.target.value)}
+            placeholder="Category name..."
+            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-indigo-500 outline-none"
+            onKeyDown={e => e.key === 'Enter' && handleCreate()} autoFocus />
+          <Button variant="primary" onClick={handleCreate}>Create</Button>
+          <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+        </Card>
       )}
 
+      {error && <div className="p-4 bg-red-50 text-red-700 rounded-lg mb-4">Failed to load categories</div>}
+
       {isLoading ? (
-        <div>
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} style={{ height: '44px', backgroundColor: '#f3f4f6', marginBottom: '1px', animation: 'pulse 1.5s infinite' }} />
-          ))}
-          <style>{`@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+        <div className="space-y-1">
+          {[1,2,3,4].map(i => <div key={i} className="h-11 bg-gray-100 rounded animate-pulse" />)}
         </div>
-      ) : data?.categories?.length > 0 ? (
-        <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-          {data.categories.map((category: CategoryNode) => (
-            <CategoryRow key={category.id} node={category} />
+      ) : data && data.length > 0 ? (
+        <Card className="overflow-hidden">
+          {data.map((cat: any) => (
+            <CategoryRow key={cat.id} node={cat} onRefresh={mutate} />
           ))}
-        </div>
+        </Card>
       ) : (
-        <div style={{ textAlign: 'center', padding: '48px', color: '#9ca3af' }}>
-          <FiFolder size={48} style={{ margin: '0 auto 16px', display: 'block' }} />
-          <p style={{ margin: 0, fontSize: '1.125rem' }}>No categories yet</p>
-          <p style={{ margin: '8px 0 0', fontSize: '0.875rem' }}>Create categories to organize your products.</p>
+        <div className="text-center py-16 text-gray-400">
+          <FiFolder size={48} className="mx-auto mb-4" />
+          <p className="text-lg">No categories yet</p>
+          <p className="text-sm mt-2">Create categories to organize your products.</p>
         </div>
       )}
     </div>

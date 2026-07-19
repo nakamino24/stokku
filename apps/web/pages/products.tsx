@@ -1,200 +1,124 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import useSWR from 'swr';
-import Link from 'next/link';
-import { FiPlus, FiSearch, FiPackage, FiDollarSign, FiGrid } from 'react-icons/fi';
-import { Button } from '@stokku/ui';
+import { FiPlus, FiSearch, FiPackage, FiDollarSign } from 'react-icons/fi';
+import { api } from '../utils/api';
+import { Card, Spinner, Badge, Button } from '@stokku/ui';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import CreateProductModal from '../components/products/CreateProductModal';
 
-const fetcher = (url: string) => {
-  const token = localStorage.getItem('token');
-  return fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  }).then(async (res) => {
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.error || 'Failed to fetch');
-    }
-    return res.json();
-  });
-};
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const fetcher = (url: string) => api.get<any>(url);
 
 export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [showCreate, setShowCreate] = useState(false);
 
-  const query = new URLSearchParams({ page: String(page), limit: '20' });
-  if (search) query.set('search', search);
+  const params = new URLSearchParams({ page: String(page), limit: '20' });
+  if (search) params.set('search', search);
 
-  const { data, error, isLoading, mutate } = useSWR(
-    `${API}/inventory/products?${query}`,
-    fetcher
-  );
+  const { data, error, isLoading, mutate } = useSWR(`/products?${params}`, fetcher);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this product and all its variants?')) return;
-    const token = localStorage.getItem('token');
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await fetch(`${API}/inventory/products/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.delete(`/products/${deleteTarget}`);
       mutate();
     } catch {
-      alert('Failed to delete product');
+      setDeleteTarget(null);
     }
+    setDeleteTarget(null);
   };
 
+  const handleCancelDelete = useCallback(() => setDeleteTarget(null), []);
+
   return (
-    <div style={{ padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Products</h1>
-        <Link href="/products/create">
-          <Button variant="primary">
-            <FiPlus size={16} /> New Product
-          </Button>
-        </Link>
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+          <p className="text-gray-500 text-sm mt-1">Manage your product catalog</p>
+        </div>
+        <Button variant="primary" onClick={() => setShowCreate(true)}>
+          <FiPlus size={16} /> New Product
+        </Button>
       </div>
 
-      <div style={{ marginBottom: '16px', position: 'relative' }}>
-        <FiSearch
-          size={16}
-          style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }}
-        />
+      <div className="relative mb-4">
+        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
         <input
           type="text"
-          placeholder="Search products by name or SKU..."
+          placeholder="Search by name or SKU..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          style={{
-            width: '100%',
-            padding: '10px 12px 10px 40px',
-            fontSize: '0.875rem',
-            borderRadius: '8px',
-            border: '1px solid #e5e7eb',
-            outline: 'none',
-            boxSizing: 'border-box',
-          }}
+          className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
         />
       </div>
 
-      {error && (
-        <div style={{ padding: '16px', backgroundColor: '#fef2f2', color: '#dc2626', borderRadius: '8px', marginBottom: '16px' }}>
-          Failed to load products
-        </div>
-      )}
+      {error && <div className="p-4 bg-red-50 text-red-700 rounded-lg mb-4">Failed to load products: {error.message}</div>}
 
       {isLoading ? (
-        <div style={{ display: 'grid', gap: '12px' }}>
-          {[1, 2, 3].map((i) => (
-            <div key={i} style={{ height: '80px', backgroundColor: '#f3f4f6', borderRadius: '8px', animation: 'pulse 1.5s infinite' }} />
-          ))}
-          <style>{`@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+        <div className="space-y-3">
+          {[1,2,3].map(i => <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse" />)}
         </div>
-      ) : data?.products?.length > 0 ? (
+      ) : data?.data?.length > 0 ? (
         <>
-          <div style={{ display: 'grid', gap: '12px' }}>
-            {data.products.map((product: any) => (
-              <div
-                key={product.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '16px',
-                  backgroundColor: '#ffffff',
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-                  <div
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '8px',
-                      backgroundColor: '#eef2ff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#6366f1',
-                    }}
-                  >
+          <div className="space-y-2">
+            {data.data.map((product: any) => (
+              <Card key={product.id} className="p-4 flex items-center justify-between hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500">
                     <FiPackage size={20} />
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: '#111827' }}>{product.name}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '2px' }}>
+                    <div className="font-semibold text-gray-900">{product.name}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {product.sku && <>SKU: {product.sku} &middot; </>}
                       {product.variants?.length || 0} variant{(product.variants?.length || 0) !== 1 ? 's' : ''}
                       {product.category && <> &middot; {product.category.name}</>}
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                    <FiDollarSign size={14} style={{ display: 'inline', verticalAlign: 'middle' }} />
-                    {product.variants?.[0]?.price != null
-                      ? `$${Number(product.variants[0].price).toFixed(2)}`
-                      : '—'}
+                <div className="flex items-center gap-4">
+                  <div className="text-sm text-gray-600">
+                    <FiDollarSign size={14} className="inline align-middle" />
+                    {Number(product.unitPrice).toFixed(2)}
                   </div>
-                  <span
-                    style={{
-                      fontSize: '0.75rem',
-                      padding: '2px 8px',
-                      borderRadius: '9999px',
-                      backgroundColor: product.status === 'active' ? '#f0fdf4' : '#f3f4f6',
-                      color: product.status === 'active' ? '#15803d' : '#6b7280',
-                    }}
-                  >
-                    {product.status}
-                  </span>
-                  <button
-                    onClick={() => handleDelete(product.id)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#dc2626',
-                      cursor: 'pointer',
-                      fontSize: '0.875rem',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                    }}
-                  >
-                    Delete
-                  </button>
+                  <Badge variant={product.status === 'ACTIVE' ? 'success' : 'default'}>{product.status}</Badge>
+                  <button onClick={() => setDeleteTarget(product.id)} className="text-xs text-red-600 hover:text-red-700 font-medium">Deactivate</button>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
-          {data.pagination && data.pagination.totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '24px' }}>
-              {Array.from({ length: data.pagination.totalPages }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPage(p)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    border: `1px solid ${p === page ? '#6366f1' : '#e5e7eb'}`,
-                    backgroundColor: p === page ? '#6366f1' : '#ffffff',
-                    color: p === page ? '#ffffff' : '#374151',
-                    cursor: 'pointer',
-                    fontWeight: p === page ? 600 : 400,
-                  }}
-                >
-                  {p}
-                </button>
+          {data.pagination?.totalPages > 1 && (
+            <div className="flex justify-center gap-2 mt-6">
+              {Array.from({ length: data.pagination.totalPages }, (_, i) => i + 1).map(p => (
+                <button key={p} onClick={() => setPage(p)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-all ${
+                    p === page ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}>{p}</button>
               ))}
             </div>
           )}
         </>
       ) : (
-        <div style={{ textAlign: 'center', padding: '48px', color: '#9ca3af' }}>
-          <FiGrid size={48} style={{ margin: '0 auto 16px', display: 'block' }} />
-          <p style={{ margin: 0, fontSize: '1.125rem' }}>No products yet</p>
-          <p style={{ margin: '8px 0 0', fontSize: '0.875rem' }}>Create your first product to start tracking inventory.</p>
+        <div className="text-center py-16 text-gray-400">
+          <FiPackage size={48} className="mx-auto mb-4" />
+          <p className="text-lg">No products yet</p>
+          <p className="text-sm mt-2">Create your first product to start tracking inventory.</p>
         </div>
       )}
+
+      {showCreate && <CreateProductModal onClose={() => { setShowCreate(false); mutate(); }} />}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Deactivate product"
+        message="Are you sure you want to deactivate this product? It will no longer be available for new transactions."
+        confirmLabel="Deactivate"
+        onConfirm={handleDelete}
+        onCancel={handleCancelDelete}
+      />
     </div>
   );
 }

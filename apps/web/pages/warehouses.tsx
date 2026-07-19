@@ -1,84 +1,114 @@
+import { useState } from 'react';
 import useSWR from 'swr';
-import Link from 'next/link';
-import MainLayout from '../components/layout/MainLayout';
-import { Card, Badge, Spinner, Button } from '@stokku/ui';
-import { FiPlus, FiMapPin, FiPackage, FiArchive, FiTrendingUp, FiChevronRight } from 'react-icons/fi';
-import axios from 'axios';
+import { FiPlus, FiArchive, FiMapPin } from 'react-icons/fi';
+import { api } from '../utils/api';
+import { Card, Button, Spinner, Badge } from '@stokku/ui';
 
-const fetcher = (url: string) => axios.get(url, {
-  headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}` },
-}).then(r => r.data.warehouses);
+const fetcher = (url: string) => api.get<any[]>(url);
 
 export default function WarehousesPage() {
-  const { data: warehouses, error, isLoading } = useSWR('/api/inventory/warehouses', fetcher);
+  const { data, error, isLoading, mutate } = useSWR('/warehouses', fetcher);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ name: '', code: '', description: '', address: '', city: '', country: '' });
+  const [saving, setSaving] = useState(false);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.post('/warehouses', form);
+      setShowCreate(false);
+      setForm({ name: '', code: '', description: '', address: '', city: '', country: '' });
+      mutate();
+    } catch {} finally { setSaving(false); }
+  };
 
   return (
-    <MainLayout>
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Warehouses</h1>
-            <p className="text-gray-500 mt-1">Manage storage locations and stock levels</p>
-          </div>
-          <Button className="flex items-center gap-2 px-4 py-2">
-            <FiPlus className="w-4 h-4" />
-            New Warehouse
-          </Button>
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Warehouses</h1>
+          <p className="text-gray-500 text-sm mt-1">Manage storage locations</p>
         </div>
+        <Button variant="primary" onClick={() => setShowCreate(true)}>
+          <FiPlus size={16} /> New Warehouse
+        </Button>
+      </div>
 
-        {isLoading && <div className="flex justify-center py-12"><Spinner /></div>}
-        {error && <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">Failed to load warehouses</div>}
+      {error && <div className="p-4 bg-red-50 text-red-700 rounded-lg mb-4">Failed to load warehouses</div>}
 
-        {warehouses?.length === 0 ? (
-          <Card className="p-12 text-center">
-            <FiArchive className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">No warehouses yet</h3>
-            <p className="text-gray-400 text-sm mb-4">Create your first warehouse to start tracking inventory</p>
-            <Button className="px-4 py-2">Create Warehouse</Button>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {warehouses?.map((w: any) => (
-              <Link key={w.id} href={`/warehouses/${w.id}`}>
-                <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <FiArchive className="w-4 h-4 text-gray-400" />
-                        <h3 className="font-semibold text-gray-900">{w.name}</h3>
-                      </div>
-                      <span className="text-xs text-gray-400 font-mono">{w.code}</span>
-                    </div>
-                    <Badge variant={w.isActive ? 'success' : 'default'}>
-                      {w.isActive ? 'Active' : 'Inactive'}
-                    </Badge>
+      {isLoading ? (
+        <div className="space-y-3">{[1,2].map(i => <div key={i} className="h-28 bg-gray-100 rounded-xl animate-pulse" />)}</div>
+      ) : data && data.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {data.map((w: any) => (
+            <Card key={w.id} className="p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-lg bg-violet-50 text-violet-500">
+                  <FiArchive size={20} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-gray-900">{w.name}</h3>
+                    <Badge variant="default" size="sm">{w.code}</Badge>
                   </div>
-                  {w.description && <p className="text-sm text-gray-500 mb-3">{w.description}</p>}
                   {w.address && (
-                    <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-3">
-                      <FiMapPin className="w-3 h-3" />
-                      <span>{w.address}</span>
+                    <div className="flex items-center gap-1.5 text-sm text-gray-500 mt-1">
+                      <FiMapPin size={13} /> {w.address}{w.city ? `, ${w.city}` : ''}
                     </div>
                   )}
-                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                    <div className="flex gap-4">
-                      <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                        <FiPackage className="w-3.5 h-3.5" />
-                        <span>{w._count?.stockLevels ?? 0} SKUs</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                        <FiTrendingUp className="w-3.5 h-3.5" />
-                        <span>{w._count?.movements ?? 0} movements</span>
-                      </div>
-                    </div>
-                    <FiChevronRight className="w-4 h-4 text-gray-300" />
+                  <div className="flex gap-4 mt-2 text-xs text-gray-400">
+                    <span>{w.zones?.length || 0} zones</span>
+                    <span>{w._count?.stockLevels || 0} stock items</span>
                   </div>
-                </Card>
-              </Link>
-            ))}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-16 text-gray-400">
+          <FiArchive size={48} className="mx-auto mb-4" />
+          <p className="text-lg">No warehouses yet</p>
+          <p className="text-sm mt-2">Create warehouses to track inventory by location.</p>
+        </div>
+      )}
+
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowCreate(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-gray-900 mb-4">New Warehouse</h2>
+            <form onSubmit={handleCreate} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                  <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-indigo-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Code *</label>
+                  <input required value={form.code} onChange={e => setForm({...form, code: e.target.value})}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-indigo-500 outline-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={2}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-indigo-500 outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <input value={form.address} onChange={e => setForm({...form, address: e.target.value})}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-indigo-500 outline-none" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="ghost" onClick={() => setShowCreate(false)} disabled={saving}>Cancel</Button>
+                <Button variant="primary" type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create'}</Button>
+              </div>
+            </form>
           </div>
-        )}
-      </div>
-    </MainLayout>
+        </div>
+      )}
+    </div>
   );
 }

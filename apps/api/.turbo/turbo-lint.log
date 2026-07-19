@@ -1,0 +1,276 @@
+
+> @stokku/api@0.1.0 lint D:\stokku\apps\api
+> eslint . --ext .ts
+
+
+D:\stokku\apps\api\src\__tests__\helpers.ts
+  21:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  21:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  21:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\middleware\__tests__\auth.test.ts
+   1:29  warning  'NextFunction' is defined but never used  @typescript-eslint/no-unused-vars
+  63:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\middleware\__tests__\validate.test.ts
+  1:29  warning  'NextFunction' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\stokku\apps\api\src\middleware\audit.ts
+  7:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  8:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\middleware\auth.ts
+  15:13  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  24:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\middleware\errorHandler.ts
+  5:72  warning  '_next' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\stokku\apps\api\src\middleware\rbac.ts
+  16:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  33:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\auth\__tests__\auth.routes.test.ts
+   2:25  warning  'mockUser' is defined but never used      @typescript-eslint/no-unused-vars
+   3:10  warning  'AppError' is defined but never used      @typescript-eslint/no-unused-vars
+  41:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  47:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  47:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  47:74  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  57:69  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  57:77  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\auth\__tests__\auth.service.test.ts
+  47:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\auth\auth.routes.ts
+   1:37  warning  'NextFunction' is defined but never used  @typescript-eslint/no-unused-vars
+   7:10  warning  'AppError' is defined but never used      @typescript-eslint/no-unused-vars
+  27:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  33:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  39:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\auth\auth.service.ts
+  30:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  30:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\categories\__tests__\categories.routes.test.ts
+  17:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  17:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  17:74  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\categories\categories.routes.ts
+  14:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\categories\categories.service.ts
+   1:18  warning  'Prisma' is defined but never used        @typescript-eslint/no-unused-vars
+  32:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\customers\customers.routes.ts
+  14:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:79  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\customers\customers.service.ts
+   6:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  45:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\dashboard\dashboard.routes.ts
+  10:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  16:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\dashboard\dashboard.service.ts
+  11:148  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  12:119  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\products\__tests__\products.routes.test.ts
+  29:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  29:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  29:74  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\products\products.routes.ts
+  14:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:78  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\products\products.service.ts
+  13:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  55:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  66:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  85:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  98:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\purchase-orders\__tests__\purchase-orders.routes.test.ts
+  30:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  30:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  30:74  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  93:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\purchase-orders\purchase-orders.routes.ts
+  14:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:84  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\purchase-orders\purchase-orders.service.ts
+   12:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   31:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   35:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   43:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   77:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   88:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   88:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   96:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   96:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  134:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\reports\reports.routes.ts
+  10:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  16:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  22:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  28:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  34:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  40:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:82  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\reports\reports.service.ts
+    2:10  warning  'parsePagination' is defined but never used  @typescript-eslint/no-unused-vars
+    2:27  warning  'paginatedResult' is defined but never used  @typescript-eslint/no-unused-vars
+   31:18  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+   53:18  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+   73:18  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  119:55  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  123:18  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\roles\roles.routes.ts
+  12:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  18:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  24:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  30:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\sales-orders\__tests__\sales-orders.routes.test.ts
+  29:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  29:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  29:74  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  54:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  74:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  99:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\sales-orders\sales-orders.routes.ts
+  14:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:81  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\sales-orders\sales-orders.service.ts
+  12:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  31:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  46:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  52:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  78:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  78:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\settings\settings.routes.ts
+  13:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  19:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\settings\settings.service.ts
+  18:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\stock\__tests__\stock.service.test.ts
+  30:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\stock\stock.routes.ts
+  13:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  14:76  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  19:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:84  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  25:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:81  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  31:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  37:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\stock\stock.service.ts
+    6:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   42:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   69:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   69:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  110:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  110:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\suppliers\__tests__\suppliers.routes.test.ts
+  15:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:74  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\suppliers\suppliers.routes.ts
+  14:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:79  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\suppliers\suppliers.service.ts
+   6:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  45:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  49:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\users\users.routes.ts
+  13:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  14:76  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  19:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  25:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\users\users.service.ts
+   6:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  37:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\warehouses\warehouses.routes.ts
+  14:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  44:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  50:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\modules\warehouses\warehouses.service.ts
+   1:18  warning  'Prisma' is defined but never used        @typescript-eslint/no-unused-vars
+  32:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\utils\__tests__\asyncHandler.test.ts
+  21:41  warning  '_req' is defined but never used   @typescript-eslint/no-unused-vars
+  21:56  warning  '_res' is defined but never used   @typescript-eslint/no-unused-vars
+  21:72  warning  '_next' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\stokku\apps\api\src\utils\asyncHandler.ts
+  3:95  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\stokku\apps\api\src\utils\pagination.ts
+  20:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 179 problems (0 errors, 179 warnings)
+

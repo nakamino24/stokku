@@ -1,0 +1,10 @@
+
+> @stokku/database@0.1.0 lint D:\stokku\packages\database
+> eslint . --ext .ts
+
+
+D:\stokku\packages\database\prisma\seed.ts
+  121:104  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 1 problem (0 errors, 1 warning)
+

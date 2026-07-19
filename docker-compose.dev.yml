@@ -1,0 +1,73 @@
+name: stokku-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stokku-db-dev
+    environment:
+      POSTGRES_USER: stokku
+      POSTGRES_PASSWORD: stokku
+      POSTGRES_DB: stokku
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stokku"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api-dev:
+    image: node:18-alpine
+    container_name: stokku-api-dev
+    working_dir: /app
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://stokku:stokku@postgres:5432/stokku
+      JWT_ACCESS_SECRET: dev-access-secret-at-least-16-chars
+      JWT_REFRESH_SECRET: dev-refresh-secret-at-least-16-chars
+      CORS_ORIGINS: http://localhost:3000
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/packages
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        pnpm --filter @stokku/database exec prisma generate &&
+        pnpm --filter @stokku/database exec prisma migrate deploy &&
+        pnpm --filter @stokku/database exec prisma db seed &&
+        pnpm --filter @stokku/api dev
+      "
+
+  web-dev:
+    image: node:18-alpine
+    container_name: stokku-web-dev
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/web/node_modules
+      - /app/apps/web/.next
+    depends_on:
+      - api-dev
+    command: >
+      sh -c "
+        pnpm --filter @stokku/web dev
+      "
+
+volumes:
+  postgres_data_dev:
