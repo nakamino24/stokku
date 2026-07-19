@@ -10,6 +10,7 @@
   "packageManager": "pnpm@8.6.0",
   "scripts": {
     "build": "turbo run build",
+    "vercel-build": "turbo run build --filter=@stokku/database --filter=@stokku/api --filter=@stokku/web",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
@@ -21,10 +22,13 @@
     "deploy:staging": "bash scripts/deploy.sh staging"
   },
   "devDependencies": {
-    "turbo": "^1.10.0",
-    "prettier": "^3.0.0"
+    "prettier": "^3.0.0",
+    "turbo": "^1.10.0"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@stokku/database": "workspace:^"
   }
 }

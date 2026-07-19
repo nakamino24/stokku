@@ -2,7 +2,14 @@ import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 
-const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002').split(',');
+// The frontend and API share a single Vercel deployment, so requests are
+// same-origin in production. CORS is configured permissively to support local
+// development against a separate dev origin, but no external production origin
+// is required.
+const devOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 export const securityMiddleware = helmet({
   contentSecurityPolicy: false,
@@ -10,7 +17,7 @@ export const securityMiddleware = helmet({
 });
 
 export const corsMiddleware = cors({
-  origin: CORS_ORIGINS,
+  origin: process.env.VERCEL ? true : devOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],

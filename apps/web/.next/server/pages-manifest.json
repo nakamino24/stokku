@@ -1,6 +1,20 @@
 {
   "/_app": "pages/_app.js",
+  "/customers": "pages/customers.html",
+  "/auth/register": "pages/auth/register.html",
+  "/auth/login": "pages/auth/login.html",
+  "/categories": "pages/categories.html",
+  "/reports": "pages/reports.html",
   "/_error": "pages/_error.js",
+  "/products": "pages/products.html",
+  "/": "pages/index.html",
+  "/purchase-orders": "pages/purchase-orders.html",
+  "/sales-orders": "pages/sales-orders.html",
+  "/suppliers": "pages/suppliers.html",
+  "/stock": "pages/stock.html",
+  "/settings": "pages/settings.html",
+  "/warehouses": "pages/warehouses.html",
+  "/users": "pages/users.html",
   "/_document": "pages/_document.js",
-  "/auth/login": "pages/auth/login.js"
+  "/404": "pages/404.html"
 }

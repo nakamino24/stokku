@@ -1,5 +1,6 @@
-import dotenv from 'dotenv';
-dotenv.config();
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  require('dotenv').config();
+}
 
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
@@ -13,7 +14,9 @@ export const config = {
   },
 
   cors: {
-    origins: (process.env.CORS_ORIGINS || 'http://localhost:3000').split(','),
+    origins: process.env.VERCEL
+      ? [process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''].filter(Boolean)
+      : (process.env.CORS_ORIGINS || 'http://localhost:3000').split(','),
   },
 
   rateLimit: {

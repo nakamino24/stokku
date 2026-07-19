@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@stokku/database':
+        specifier: workspace:^
+        version: link:packages/database
     devDependencies:
       prettier:
         specifier: ^3.0.0

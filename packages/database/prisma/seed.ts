@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -8,16 +9,13 @@ async function main() {
 
   const passwordHash = await bcrypt.hash('password123', 10);
 
-  const org = await prisma.organization.upsert({
-    where: { slug: 'demo-company' },
-    update: {},
-    create: {
-      name: 'Demo Company',
-      slug: 'demo-company',
-      currency: 'USD',
-      timezone: 'UTC',
-    },
-  });
+  // Create organization with raw SQL to bypass Prisma's circular relation requirement
+  const orgId = randomUUID();
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "Organization" (id, name, slug, currency, timezone, "updatedAt") VALUES ($1, $2, $3, $4, $5, NOW()) ON CONFLICT (slug) DO NOTHING`,
+    orgId, 'Demo Company', 'demo-company', 'USD', 'UTC'
+  );
+  const org = await prisma.organization.findUniqueOrThrow({ where: { slug: 'demo-company' } });
 
   const user = await prisma.user.upsert({
     where: { email: 'demo@stokku.app' },
@@ -118,24 +116,24 @@ async function main() {
   const sl6 = await prisma.stockLevel.create({ data: { organizationId: org.id, warehouseId: wCold.id, productId: p1.id, variantId: v1a.id, quantity: 35, available: 35, reorderPoint: 20, reorderQty: 30 } });
 
   // Stock movements
-  const movs: { stockLevelId: string; productId: string; variantId: string; warehouseId: string; type: any; quantity: number; beforeQty: number; afterQty: number; reference: string; createdById: string; createdAt: Date }[] = [
-    { stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'IN', quantity: 100, beforeQty: 0, afterQty: 100, reference: 'PO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
-    { stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'OUT', quantity: -15, beforeQty: 100, afterQty: 85, reference: 'SO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 20) },
-    { stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'OUT', quantity: -10, beforeQty: 85, afterQty: 75, reference: 'SO-00002', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 10) },
-    { stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'IN', quantity: 75, beforeQty: 75, afterQty: 150, reference: 'PO-00002', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 5) },
-    { stockLevelId: sl2.id, productId: p1.id, variantId: v1b.id, warehouseId: wMain.id, type: 'IN', quantity: 30, beforeQty: 0, afterQty: 30, reference: 'PO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
-    { stockLevelId: sl2.id, productId: p1.id, variantId: v1b.id, warehouseId: wMain.id, type: 'OUT', quantity: -5, beforeQty: 30, afterQty: 25, reference: 'SO-00003', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 15) },
-    { stockLevelId: sl3.id, productId: p2.id, variantId: v2b.id, warehouseId: wMain.id, type: 'IN', quantity: 50, beforeQty: 0, afterQty: 50, reference: 'PO-00003', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 60) },
-    { stockLevelId: sl3.id, productId: p2.id, variantId: v2b.id, warehouseId: wMain.id, type: 'OUT', quantity: -20, beforeQty: 50, afterQty: 30, reference: 'SO-00004', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 25) },
-    { stockLevelId: sl3.id, productId: p2.id, variantId: v2b.id, warehouseId: wMain.id, type: 'OUT', quantity: -15, beforeQty: 30, afterQty: 15, reference: 'SO-00005', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 3) },
-    { stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'IN', quantity: 200, beforeQty: 0, afterQty: 200, reference: 'PO-00004', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 90) },
-    { stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'OUT', quantity: -40, beforeQty: 200, afterQty: 160, reference: 'SO-00006', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 60) },
-    { stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'OUT', quantity: -30, beforeQty: 160, afterQty: 130, reference: 'SO-00007', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
-    { stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'OUT', quantity: -25, beforeQty: 130, afterQty: 105, reference: 'SO-00008', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 7) },
-    { stockLevelId: sl5.id, productId: p4.id, variantId: v4a.id, warehouseId: wMain.id, type: 'IN', quantity: 10, beforeQty: 0, afterQty: 10, reference: 'PO-00005', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 120) },
-    { stockLevelId: sl5.id, productId: p4.id, variantId: v4a.id, warehouseId: wMain.id, type: 'OUT', quantity: -2, beforeQty: 10, afterQty: 8, reference: 'SO-00009', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 90) },
-    { stockLevelId: sl6.id, productId: p1.id, variantId: v1a.id, warehouseId: wCold.id, type: 'IN', quantity: 40, beforeQty: 0, afterQty: 40, reference: 'PO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
-    { stockLevelId: sl6.id, productId: p1.id, variantId: v1a.id, warehouseId: wCold.id, type: 'TRANSFER', quantity: -5, beforeQty: 40, afterQty: 35, reference: 'TR-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 12) },
+  const movs: { organizationId: string; stockLevelId: string; productId: string; variantId: string; warehouseId: string; type: any; quantity: number; beforeQty: number; afterQty: number; reference: string; createdById: string; createdAt: Date }[] = [
+    { organizationId: org.id, stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'IN', quantity: 100, beforeQty: 0, afterQty: 100, reference: 'PO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
+    { organizationId: org.id, stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'OUT', quantity: -15, beforeQty: 100, afterQty: 85, reference: 'SO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 20) },
+    { organizationId: org.id, stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'OUT', quantity: -10, beforeQty: 85, afterQty: 75, reference: 'SO-00002', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 10) },
+    { organizationId: org.id, stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'IN', quantity: 75, beforeQty: 75, afterQty: 150, reference: 'PO-00002', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 5) },
+    { organizationId: org.id, stockLevelId: sl2.id, productId: p1.id, variantId: v1b.id, warehouseId: wMain.id, type: 'IN', quantity: 30, beforeQty: 0, afterQty: 30, reference: 'PO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
+    { organizationId: org.id, stockLevelId: sl2.id, productId: p1.id, variantId: v1b.id, warehouseId: wMain.id, type: 'OUT', quantity: -5, beforeQty: 30, afterQty: 25, reference: 'SO-00003', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 15) },
+    { organizationId: org.id, stockLevelId: sl3.id, productId: p2.id, variantId: v2b.id, warehouseId: wMain.id, type: 'IN', quantity: 50, beforeQty: 0, afterQty: 50, reference: 'PO-00003', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 60) },
+    { organizationId: org.id, stockLevelId: sl3.id, productId: p2.id, variantId: v2b.id, warehouseId: wMain.id, type: 'OUT', quantity: -20, beforeQty: 50, afterQty: 30, reference: 'SO-00004', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 25) },
+    { organizationId: org.id, stockLevelId: sl3.id, productId: p2.id, variantId: v2b.id, warehouseId: wMain.id, type: 'OUT', quantity: -15, beforeQty: 30, afterQty: 15, reference: 'SO-00005', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 3) },
+    { organizationId: org.id, stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'IN', quantity: 200, beforeQty: 0, afterQty: 200, reference: 'PO-00004', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 90) },
+    { organizationId: org.id, stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'OUT', quantity: -40, beforeQty: 200, afterQty: 160, reference: 'SO-00006', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 60) },
+    { organizationId: org.id, stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'OUT', quantity: -30, beforeQty: 160, afterQty: 130, reference: 'SO-00007', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
+    { organizationId: org.id, stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'OUT', quantity: -25, beforeQty: 130, afterQty: 105, reference: 'SO-00008', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 7) },
+    { organizationId: org.id, stockLevelId: sl5.id, productId: p4.id, variantId: v4a.id, warehouseId: wMain.id, type: 'IN', quantity: 10, beforeQty: 0, afterQty: 10, reference: 'PO-00005', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 120) },
+    { organizationId: org.id, stockLevelId: sl5.id, productId: p4.id, variantId: v4a.id, warehouseId: wMain.id, type: 'OUT', quantity: -2, beforeQty: 10, afterQty: 8, reference: 'SO-00009', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 90) },
+    { organizationId: org.id, stockLevelId: sl6.id, productId: p1.id, variantId: v1a.id, warehouseId: wCold.id, type: 'IN', quantity: 40, beforeQty: 0, afterQty: 40, reference: 'PO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
+    { organizationId: org.id, stockLevelId: sl6.id, productId: p1.id, variantId: v1a.id, warehouseId: wCold.id, type: 'TRANSFER', quantity: -5, beforeQty: 40, afterQty: 35, reference: 'TR-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 12) },
   ];
 
   await prisma.stockMovement.createMany({ data: movs });

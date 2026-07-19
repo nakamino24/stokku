@@ -1,3 +1,6 @@
+// In production the API is served by the same Vercel deployment under /api,
+// so we use a relative base. Locally, set NEXT_PUBLIC_API_URL to override
+// (e.g. http://localhost:3001) — see next.config.mjs rewrites.
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1`;
 
 interface TokenPair {

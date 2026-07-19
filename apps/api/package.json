@@ -4,9 +4,9 @@
   "private": true,
   "description": "Stokku API server",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "vercel dev",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "vercel dev",
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit --skipLibCheck",
     "test": "jest",
