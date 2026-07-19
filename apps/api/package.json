@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Stokku API server",
+  "main": "dist/app.js",
   "scripts": {
     "dev": "vercel dev",
     "build": "tsc",

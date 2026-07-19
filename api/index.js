@@ -1,6 +1,9 @@
 // Vercel Serverless Function entry point.
 // The Express application is compiled to JavaScript by `pnpm build`
-// (turbo → @stokku/api tsc → apps/api/dist). We re-export the compiled
-// app here so the @vercel/node builder does not type-check the source tree,
-// which avoids fragile isolated TypeScript compilation in the lambda build.
-module.exports = require('../apps/api/dist/app').default;
+// (turbo → @stokku/api tsc → apps/api/dist/app.js). We load the compiled
+// artifact explicitly by absolute path so the @vercel/node bundler does not
+// re-resolve the import to the TypeScript source tree.
+const path = require('path');
+
+const appPath = path.join(__dirname, '..', 'apps', 'api', 'dist', 'app.js');
+module.exports = require(appPath).default;

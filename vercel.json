@@ -13,7 +13,7 @@
       "runtime": "@vercel/node@3.2.18",
       "maxDuration": 30,
       "memory": 512,
-      "includeFiles": "node_modules/.prisma/**,node_modules/@prisma/**,node_modules/.pnpm/@prisma+*/node_modules/.prisma/**,node_modules/.pnpm/@prisma+*node_modules/@prisma/**"
+      "includeFiles": "node_modules/.prisma/**,node_modules/@prisma/**,node_modules/.pnpm/@prisma+*/node_modules/.prisma/**,node_modules/.pnpm/@prisma+*node_modules/@prisma/**,apps/api/dist/**,packages/database/dist/**"
     }
   },
   "rewrites": [
