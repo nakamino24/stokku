@@ -13,13 +13,13 @@ exports.DashboardService = {
             database_1.prisma.purchaseOrder.count({ where: { organizationId: orgId, status: { in: ['PENDING_APPROVAL', 'APPROVED', 'SENT', 'PARTIALLY_RECEIVED'] } } }),
             database_1.prisma.salesOrder.count({ where: { organizationId: orgId, status: { in: ['CONFIRMED', 'PICKING', 'SHIPPING'] } } }),
         ]);
-        const lowStockResult = await database_1.prisma.$queryRaw `
-      SELECT COUNT(*) as count FROM "StockLevel"
-      WHERE "organizationId" = ${orgId}::uuid
-      AND "reorderPoint" IS NOT NULL
-      AND "quantity" <= "reorderPoint"
-    `;
-        const lowStockCount = Number(lowStockResult[0]?.count ?? 0);
+        const lowStockCount = await database_1.prisma.stockLevel.count({
+            where: {
+                organizationId: orgId,
+                reorderPoint: { not: null },
+                quantity: { lte: database_1.prisma.stockLevel.fields.reorderPoint },
+            },
+        });
         const recentMovements = await database_1.prisma.stockMovement.findMany({
             where: { organizationId: orgId },
             orderBy: { createdAt: 'desc' },
@@ -45,17 +45,12 @@ exports.DashboardService = {
         };
     },
     async getLowStockAlerts(orgId) {
-        const lowStockIds = await database_1.prisma.$queryRaw `
-      SELECT id FROM "StockLevel"
-      WHERE "organizationId" = ${orgId}::uuid
-      AND "reorderPoint" IS NOT NULL
-      AND "quantity" <= "reorderPoint"
-      ORDER BY "quantity" ASC
-    `;
-        if (lowStockIds.length === 0)
-            return [];
         return database_1.prisma.stockLevel.findMany({
-            where: { id: { in: lowStockIds.map(r => r.id) } },
+            where: {
+                organizationId: orgId,
+                reorderPoint: { not: null },
+                quantity: { lte: database_1.prisma.stockLevel.fields.reorderPoint },
+            },
             include: {
                 product: { select: { name: true, sku: true, unit: true } },
                 warehouse: { select: { name: true } },

@@ -12,13 +12,13 @@ export const DashboardService = {
       prisma.salesOrder.count({ where: { organizationId: orgId, status: { in: ['CONFIRMED', 'PICKING', 'SHIPPING'] as any } } }),
     ]);
 
-    const lowStockResult = await prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(*) as count FROM "StockLevel"
-      WHERE "organizationId" = ${orgId}::uuid
-      AND "reorderPoint" IS NOT NULL
-      AND "quantity" <= "reorderPoint"
-    `;
-    const lowStockCount = Number(lowStockResult[0]?.count ?? 0);
+    const lowStockCount = await prisma.stockLevel.count({
+      where: {
+        organizationId: orgId,
+        reorderPoint: { not: null },
+        quantity: { lte: prisma.stockLevel.fields.reorderPoint },
+      },
+    });
 
     const recentMovements = await prisma.stockMovement.findMany({
       where: { organizationId: orgId },
@@ -47,18 +47,12 @@ export const DashboardService = {
   },
 
   async getLowStockAlerts(orgId: string) {
-    const lowStockIds = await prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM "StockLevel"
-      WHERE "organizationId" = ${orgId}::uuid
-      AND "reorderPoint" IS NOT NULL
-      AND "quantity" <= "reorderPoint"
-      ORDER BY "quantity" ASC
-    `;
-
-    if (lowStockIds.length === 0) return [];
-
     return prisma.stockLevel.findMany({
-      where: { id: { in: lowStockIds.map(r => r.id) } },
+      where: {
+        organizationId: orgId,
+        reorderPoint: { not: null },
+        quantity: { lte: prisma.stockLevel.fields.reorderPoint },
+      },
       include: {
         product: { select: { name: true, sku: true, unit: true } },
         warehouse: { select: { name: true } },

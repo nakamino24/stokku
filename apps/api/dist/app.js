@@ -43,6 +43,10 @@ function validateConfig() {
     }
 }
 const app = (0, express_1.default)();
+// Vercel terminates TLS and forwards client IP via X-Forwarded-For.
+// Trust the platform proxy so express-rate-limit can identify clients
+// correctly (prevents ERR_ERL_UNEXPECTED_X_FORWARDED_FOR).
+app.set('trust proxy', 1);
 app.use((_req, _res, next) => {
     try {
         validateConfig();

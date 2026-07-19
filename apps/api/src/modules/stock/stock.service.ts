@@ -13,13 +13,8 @@ export const StockService = {
     if (query.warehouseId) where.warehouseId = query.warehouseId;
     if (query.productId) where.productId = query.productId;
     if (query.lowStock === 'true') {
-      const lowStockIds = await prisma.$queryRaw<Array<{ id: string }>>`
-        SELECT id FROM "StockLevel"
-        WHERE "organizationId" = ${orgId}::uuid
-        AND "reorderPoint" IS NOT NULL
-        AND "quantity" <= "reorderPoint"
-      `;
-      where.id = { in: lowStockIds.map(r => r.id) };
+      where.reorderPoint = { not: null };
+      where.quantity = { lte: prisma.stockLevel.fields.reorderPoint };
     }
 
     const [data, total] = await Promise.all([
