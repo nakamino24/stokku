@@ -10,6 +10,7 @@ import {
   updateProfileSchema,
   changePasswordSchema,
   forgotPasswordSchema,
+  resetTokenSchema,
   resetPasswordSchema,
 } from './auth.schema';
 import { clearRefreshCookie, REFRESH_COOKIE_NAME, setRefreshCookie } from './auth.cookies';
@@ -71,6 +72,11 @@ router.post('/change-password', authMiddleware, validate({ body: changePasswordS
 
 router.post('/forgot-password', passwordResetLimiter, validate({ body: forgotPasswordSchema }), asyncHandler(async (req: Request, res: Response) => {
   const result = await AuthService.requestPasswordReset(req.body.email);
+  res.json(result);
+}));
+
+router.post('/validate-reset-token', passwordResetLimiter, validate({ body: resetTokenSchema }), asyncHandler(async (req: Request, res: Response) => {
+  const result = await AuthService.validatePasswordResetToken(req.body.token);
   res.json(result);
 }));
 
