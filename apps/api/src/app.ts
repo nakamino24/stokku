@@ -29,9 +29,6 @@ function validateConfig() {
   if (!config.jwt.accessSecret || config.jwt.accessSecret.length < 16) {
     errors.push('ACCESS_TOKEN_SECRET must be at least 16 characters');
   }
-  if (!config.jwt.refreshSecret || config.jwt.refreshSecret.length < 16) {
-    errors.push('REFRESH_TOKEN_SECRET must be at least 16 characters');
-  }
   configValidated = true;
   if (errors.length > 0) {
     logger.error('Configuration validation failed', { errors });
@@ -42,8 +39,7 @@ function validateConfig() {
 const app = express();
 
 // Vercel terminates TLS and forwards client IP via X-Forwarded-For.
-// Trust the platform proxy so express-rate-limit can identify clients
-// correctly (prevents ERR_ERL_UNEXPECTED_X_FORWARDED_FOR).
+// Trust the platform proxy so express-rate-limit can identify clients correctly.
 app.set('trust proxy', 1);
 
 app.use((_req: Request, _res: Response, next: NextFunction) => {
