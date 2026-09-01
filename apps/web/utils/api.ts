@@ -3,25 +3,18 @@
 // (e.g. http://localhost:3001) — see next.config.mjs rewrites.
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1`;
 
-interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-}
-
-function getStoredTokens(): TokenPair | null {
+function getStoredAccessToken(): string | null {
   try {
-    const accessToken = localStorage.getItem('accessToken');
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (accessToken && refreshToken) return { accessToken, refreshToken };
-    return null;
+    return localStorage.getItem('accessToken');
   } catch {
     return null;
   }
 }
 
-function storeTokens(tokens: TokenPair) {
-  localStorage.setItem('accessToken', tokens.accessToken);
-  localStorage.setItem('refreshToken', tokens.refreshToken);
+export function storeAccessToken(accessToken: string) {
+  localStorage.setItem('accessToken', accessToken);
+  // Cleanup legacy refresh-token storage from the previous auth flow.
+  localStorage.removeItem('refreshToken');
 }
 
 export function clearTokens() {
@@ -37,14 +30,10 @@ async function refreshTokens(): Promise<boolean> {
 
   isRefreshing = true;
   refreshPromise = (async () => {
-    const tokens = getStoredTokens();
-    if (!tokens) return false;
-
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+        credentials: 'include',
       });
 
       if (!res.ok) {
@@ -53,11 +42,12 @@ async function refreshTokens(): Promise<boolean> {
       }
 
       const data = await res.json();
-      const newTokens: TokenPair = {
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken || tokens.refreshToken,
-      };
-      storeTokens(newTokens);
+      if (!data.accessToken) {
+        clearTokens();
+        return false;
+      }
+
+      storeAccessToken(data.accessToken);
       return true;
     } catch {
       clearTokens();
@@ -82,26 +72,44 @@ export class ApiError extends Error {
   }
 }
 
+function canAttemptRefresh(url: string): boolean {
+  return ![
+    '/auth/login',
+    '/auth/register',
+    '/auth/refresh',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+  ].includes(url);
+}
+
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
-  let tokens = getStoredTokens();
+  let accessToken = getStoredAccessToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
 
-  if (tokens?.accessToken) headers['Authorization'] = `Bearer ${tokens.accessToken}`;
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
-  let res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+  let res = await fetch(`${API_BASE}${url}`, {
+    ...options,
+    headers,
+    credentials: 'include',
+  });
 
-  if (res.status === 401 && tokens?.refreshToken) {
+  if (res.status === 401 && canAttemptRefresh(url)) {
     const refreshed = await refreshTokens();
     if (refreshed) {
-      tokens = getStoredTokens();
-      if (tokens?.accessToken) headers['Authorization'] = `Bearer ${tokens.accessToken}`;
-      res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+      accessToken = getStoredAccessToken();
+      if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+      res = await fetch(`${API_BASE}${url}`, {
+        ...options,
+        headers,
+        credentials: 'include',
+      });
     } else {
       clearTokens();
-      window.location.href = '/auth/login';
+      if (typeof window !== 'undefined') window.location.href = '/auth/login';
       throw new ApiError('Session expired', 401, 'SESSION_EXPIRED');
     }
   }
