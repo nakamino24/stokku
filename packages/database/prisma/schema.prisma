@@ -76,41 +76,41 @@ model Organization {
   ownerId String? @unique
   owner   User?   @relation("organizationOwner", fields: [ownerId], references: [id])
 
-  members    OrganizationMember[]
-  categories Category[]
-  products   Product[]
-  suppliers  Supplier[]
-  customers  Customer[]
-  warehouses Warehouse[]
-  stockLevels StockLevel[]
+  members        OrganizationMember[]
+  categories     Category[]
+  products       Product[]
+  suppliers      Supplier[]
+  customers      Customer[]
+  warehouses     Warehouse[]
+  stockLevels    StockLevel[]
   stockMovements StockMovement[]
   purchaseOrders PurchaseOrder[]
   salesOrders    SalesOrder[]
-  users      User[]
-  roles      Role[]
-  auditLogs  AuditLog[]
+  users           User[]
+  roles           Role[]
+  auditLogs       AuditLog[]
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  passwordHash String?
-  googleId  String?  @unique
-  name      String
-  avatarUrl String?
-  phone     String?
-  isActive  Boolean  @default(true)
-  emailVerified     Boolean  @default(false)
-  emailVerificationToken String?
+  id                       String   @id @default(uuid())
+  email                    String   @unique
+  passwordHash             String?
+  googleId                 String?  @unique
+  name                     String
+  avatarUrl                String?
+  phone                    String?
+  isActive                 Boolean  @default(true)
+  emailVerified            Boolean  @default(false)
+  emailVerificationToken   String?
   emailVerificationExpires DateTime?
-  passwordResetToken   String?
-  passwordResetExpires DateTime?
-  lastLoginAt   DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  passwordResetToken       String?
+  passwordResetExpires     DateTime?
+  lastLoginAt              DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], map: "user_org_fkey")
+  organization   Organization     @relation(fields: [organizationId], references: [id], map: "user_org_fkey")
   role           OrganizationRole @default(VIEWER)
 
   ownedOrganization Organization? @relation("organizationOwner")
@@ -118,8 +118,10 @@ model User {
   createdStockMovements StockMovement[] @relation("createdBy")
   createdPurchaseOrders PurchaseOrder[] @relation("poCreatedBy")
   createdSalesOrders    SalesOrder[]    @relation("soCreatedBy")
-  auditLogs    AuditLog[]
-  organizationMembers OrganizationMember[]
+  auditLogs             AuditLog[]
+  organizationMembers   OrganizationMember[]
+  refreshSessions       RefreshSession[]
+  passwordResetTokens   PasswordResetToken[]
 
   @@index([organizationId])
   @@index([email])
@@ -139,15 +141,15 @@ model OrganizationMember {
 }
 
 model Role {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name           String
   slug           String
   description    String?
-  isSystem       Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isSystem       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   permissions RolePermission[]
 
@@ -156,31 +158,31 @@ model Role {
 }
 
 model RolePermission {
-  id        String @id @default(uuid())
-  roleId    String
-  role      Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission String // e.g. "products:create", "products:read", "products:update", "products:delete"
+  id         String @id @default(uuid())
+  roleId     String
+  role       Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission String
 
   @@unique([roleId, permission])
   @@index([roleId])
 }
 
 model Category {
-  id             String    @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   parentId       String?
-  parent         Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children       Category[] @relation("CategoryHierarchy")
+  parent         Category?    @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children       Category[]   @relation("CategoryHierarchy")
   name           String
   slug           String
   description    String?
   imageUrl       String?
   color          String?
-  sortOrder      Int       @default(0)
-  isActive       Boolean   @default(true)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  sortOrder      Int          @default(0)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   products Product[]
 
@@ -253,18 +255,18 @@ model ProductVariant {
 }
 
 model ProductSupplier {
-  id          String  @id @default(uuid())
-  productId   String
-  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  supplierId  String
-  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  supplierSku String?
+  id           String   @id @default(uuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplierId   String
+  supplier     Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierSku  String?
   leadTimeDays Int?
-  moq         Int?
-  unitCost    Decimal?
-  isPreferred Boolean @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  moq          Int?
+  unitCost     Decimal?
+  isPreferred  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@unique([productId, supplierId])
   @@index([supplierId])
@@ -289,7 +291,7 @@ model Supplier {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  products      ProductSupplier[]
+  products       ProductSupplier[]
   purchaseOrders PurchaseOrder[]
 
   @@index([organizationId])
@@ -297,7 +299,7 @@ model Supplier {
 }
 
 model Customer {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name           String
@@ -309,9 +311,9 @@ model Customer {
   taxId          String?
   notes          String?
   creditLimit    Decimal?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   salesOrders SalesOrder[]
 
@@ -320,7 +322,7 @@ model Customer {
 }
 
 model Warehouse {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name           String
@@ -330,9 +332,9 @@ model Warehouse {
   city           String?
   country        String?
   capacity       Int?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   zones         WarehouseZone[]
   stockLevels   StockLevel[]
@@ -345,14 +347,14 @@ model Warehouse {
 }
 
 model WarehouseZone {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   warehouseId String
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
   name        String
   code        String
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   bins WarehouseBin[]
 
@@ -361,14 +363,14 @@ model WarehouseZone {
 }
 
 model WarehouseBin {
-  id          String   @id @default(uuid())
+  id          String        @id @default(uuid())
   zoneId      String
   zone        WarehouseZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
   code        String
   maxCapacity Int?
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   stockLevels StockLevel[]
 
@@ -377,24 +379,24 @@ model WarehouseBin {
 }
 
 model StockLevel {
-  id          String  @id @default(uuid())
+  id             String          @id @default(uuid())
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  warehouseId String
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-  binId       String?
-  bin         WarehouseBin? @relation(fields: [binId], references: [id])
-  productId   String
-  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  variantId   String?
-  variant     ProductVariant? @relation(fields: [variantId], references: [id])
-  quantity    Int     @default(0)
-  reserved    Int     @default(0)
-  available   Int     @default(0)
-  reorderPoint Int?
-  reorderQty  Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouseId    String
+  warehouse      Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  binId          String?
+  bin            WarehouseBin?   @relation(fields: [binId], references: [id])
+  productId      String
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId      String?
+  variant        ProductVariant? @relation(fields: [variantId], references: [id])
+  quantity       Int             @default(0)
+  reserved       Int             @default(0)
+  available      Int             @default(0)
+  reorderPoint   Int?
+  reorderQty     Int?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   movements StockMovement[]
 
@@ -407,35 +409,35 @@ model StockLevel {
 }
 
 model StockMovement {
-  id               String             @id @default(uuid())
-  organizationId   String
-  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  type             StockMovementType
-  productId        String
-  product          Product            @relation(fields: [productId], references: [id])
-  variantId        String?
-  variant          ProductVariant?    @relation(fields: [variantId], references: [id])
-  warehouseId      String?
-  warehouse        Warehouse?         @relation(fields: [warehouseId], references: [id])
-  fromWarehouseId  String?
-  fromWarehouse    Warehouse?         @relation("fromWarehouse", fields: [fromWarehouseId], references: [id])
-  toWarehouseId    String?
-  toWarehouse      Warehouse?         @relation("toWarehouse", fields: [toWarehouseId], references: [id])
-  stockLevelId     String?
-  stockLevel       StockLevel?        @relation(fields: [stockLevelId], references: [id])
-  quantity         Int
-  beforeQty        Int                @default(0)
-  afterQty         Int                @default(0)
-  unitPrice        Decimal?
-  totalPrice       Decimal?
-  referenceType    String? // PURCHASE_ORDER, SALES_ORDER, ADJUSTMENT, TRANSFER, RETURN
-  referenceId      String?
-  reference        String?
-  reason           String?
-  note             String?
-  createdById      String
-  createdBy        User               @relation("createdBy", fields: [createdById], references: [id])
-  createdAt        DateTime           @default(now())
+  id              String            @id @default(uuid())
+  organizationId  String
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type            StockMovementType
+  productId       String
+  product         Product           @relation(fields: [productId], references: [id])
+  variantId       String?
+  variant         ProductVariant?   @relation(fields: [variantId], references: [id])
+  warehouseId     String?
+  warehouse       Warehouse?        @relation(fields: [warehouseId], references: [id])
+  fromWarehouseId String?
+  fromWarehouse   Warehouse?        @relation("fromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String?
+  toWarehouse     Warehouse?        @relation("toWarehouse", fields: [toWarehouseId], references: [id])
+  stockLevelId    String?
+  stockLevel      StockLevel?       @relation(fields: [stockLevelId], references: [id])
+  quantity        Int
+  beforeQty       Int               @default(0)
+  afterQty        Int               @default(0)
+  unitPrice       Decimal?
+  totalPrice      Decimal?
+  referenceType   String?
+  referenceId     String?
+  reference       String?
+  reason          String?
+  note            String?
+  createdById     String
+  createdBy       User              @relation("createdBy", fields: [createdById], references: [id])
+  createdAt       DateTime          @default(now())
 
   @@index([productId])
   @@index([variantId])
@@ -446,24 +448,24 @@ model StockMovement {
 }
 
 model PurchaseOrder {
-  id             String               @id @default(uuid())
+  id             String              @id @default(uuid())
   organizationId String
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   poNumber       String
   supplierId     String
-  supplier       Supplier             @relation(fields: [supplierId], references: [id])
-  status         PurchaseOrderStatus  @default(DRAFT)
-  orderDate      DateTime             @default(now())
+  supplier       Supplier            @relation(fields: [supplierId], references: [id])
+  status         PurchaseOrderStatus @default(DRAFT)
+  orderDate      DateTime            @default(now())
   expectedDate   DateTime?
   receivedDate   DateTime?
-  subtotal       Decimal              @default(0)
-  taxAmount      Decimal              @default(0)
-  totalAmount    Decimal              @default(0)
+  subtotal       Decimal             @default(0)
+  taxAmount      Decimal             @default(0)
+  totalAmount    Decimal             @default(0)
   notes          String?
   createdById    String
-  createdBy      User                 @relation("poCreatedBy", fields: [createdById], references: [id])
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  createdBy      User                @relation("poCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
   items PurchaseOrderItem[]
 
@@ -474,40 +476,40 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id              String  @id @default(uuid())
+  id              String          @id @default(uuid())
   purchaseOrderId String
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrder   PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   productId       String
-  product         Product     @relation(fields: [productId], references: [id])
+  product         Product         @relation(fields: [productId], references: [id])
   variantId       String?
   variant         ProductVariant? @relation(fields: [variantId], references: [id])
   quantity        Int
-  receivedQty     Int     @default(0)
-  unitPrice       Decimal @default(0)
-  totalPrice      Decimal @default(0)
-  createdAt       DateTime @default(now())
+  receivedQty     Int             @default(0)
+  unitPrice       Decimal         @default(0)
+  totalPrice      Decimal         @default(0)
+  createdAt       DateTime        @default(now())
 
   @@index([purchaseOrderId])
   @@index([productId])
 }
 
 model SalesOrder {
-  id             String            @id @default(uuid())
+  id             String           @id @default(uuid())
   organizationId String
-  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   soNumber       String
   customerId     String
-  customer       Customer          @relation(fields: [customerId], references: [id])
-  status         SalesOrderStatus  @default(DRAFT)
-  orderDate      DateTime          @default(now())
-  subtotal       Decimal           @default(0)
-  taxAmount      Decimal           @default(0)
-  totalAmount    Decimal           @default(0)
+  customer       Customer         @relation(fields: [customerId], references: [id])
+  status         SalesOrderStatus @default(DRAFT)
+  orderDate      DateTime         @default(now())
+  subtotal       Decimal          @default(0)
+  taxAmount      Decimal          @default(0)
+  totalAmount    Decimal          @default(0)
   notes          String?
   createdById    String
-  createdBy      User              @relation("soCreatedBy", fields: [createdById], references: [id])
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  createdBy      User             @relation("soCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   items SalesOrderItem[]
 
@@ -518,39 +520,69 @@ model SalesOrder {
 }
 
 model SalesOrderItem {
-  id           String  @id @default(uuid())
+  id           String          @id @default(uuid())
   salesOrderId String
-  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  salesOrder   SalesOrder      @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
   productId    String
-  product      Product     @relation(fields: [productId], references: [id])
+  product      Product         @relation(fields: [productId], references: [id])
   variantId    String?
   variant      ProductVariant? @relation(fields: [variantId], references: [id])
   quantity     Int
-  unitPrice    Decimal @default(0)
-  totalPrice   Decimal @default(0)
-  createdAt    DateTime @default(now())
+  unitPrice    Decimal         @default(0)
+  totalPrice   Decimal         @default(0)
+  createdAt    DateTime        @default(now())
 
   @@index([salesOrderId])
   @@index([productId])
 }
 
 model AuditLog {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userId         String
-  user           User     @relation(fields: [userId], references: [id])
-  action         String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, EXPORT, PRINT
-  entityType     String   // Product, PurchaseOrder, SalesOrder, etc.
+  user           User         @relation(fields: [userId], references: [id])
+  action         String
+  entityType     String
   entityId       String?
-  oldValues      String?  // JSON string of old values
-  newValues      String?  // JSON string of new values
+  oldValues      String?
+  newValues      String?
   ipAddress      String?
   userAgent      String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
 
   @@index([organizationId])
   @@index([entityType])
   @@index([createdAt])
   @@index([userId])
+}
+
+model RefreshSession {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash     String   @unique
+  familyId      String
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  revokedReason String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
