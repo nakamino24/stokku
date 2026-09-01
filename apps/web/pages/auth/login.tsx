@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FiMail, FiLock, FiArrowRight } from 'react-icons/fi';
 import AuthLayout from '../../components/auth/AuthLayout';
 import { AuthInput } from '../../components/auth/AuthInput';
-import { api, ApiError, storeAccessToken } from '../../utils/api';
+import { api, ApiError, setAccessToken } from '../../utils/api';
 
 const loginSchema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -37,7 +37,7 @@ export default function LoginPage() {
     try {
       const response = await api.post<{ accessToken: string; user: any }>('/auth/login', data);
       const { accessToken, user } = response;
-      storeAccessToken(accessToken);
+      setAccessToken(accessToken);
       localStorage.setItem('user', JSON.stringify(user));
       router.push('/');
     } catch (err: any) {
