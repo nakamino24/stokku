@@ -1,64 +1,80 @@
 // In production the API is served by the same Vercel deployment under /api,
-// so we use a relative base. Locally, set NEXT_PUBLIC_API_URL to override
-// (e.g. http://localhost:3001) — see next.config.mjs rewrites.
+// so we use a relative base. Locally, set NEXT_PUBLIC_API_URL to override.
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1`;
 
-function getStoredAccessToken(): string | null {
-  try {
-    return localStorage.getItem('accessToken');
-  } catch {
-    return null;
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+  if (typeof window !== 'undefined') {
+    // Remove credentials left by earlier builds. Non-secret user display data may remain.
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
   }
 }
 
-export function storeAccessToken(accessToken: string) {
-  localStorage.setItem('accessToken', accessToken);
-  // Cleanup legacy refresh-token storage from the previous auth flow.
-  localStorage.removeItem('refreshToken');
-}
-
 export function clearTokens() {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
+  accessToken = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+  }
 }
 
-let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 
-async function refreshTokens(): Promise<boolean> {
-  if (isRefreshing && refreshPromise) return refreshPromise;
+async function performRefresh(retryRotatedOnce = true): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    });
 
-  isRefreshing = true;
-  refreshPromise = (async () => {
-    try {
-      const res = await fetch(`${API_BASE}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+    if (res.status === 409 && retryRotatedOnce) {
+      // A different tab/request may have rotated the cookie milliseconds earlier.
+      // Give the browser a moment to apply the winning Set-Cookie, then retry once.
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      return performRefresh(false);
+    }
 
-      if (!res.ok) {
-        clearTokens();
-        return false;
-      }
-
-      const data = await res.json();
-      if (!data.accessToken) {
-        clearTokens();
-        return false;
-      }
-
-      storeAccessToken(data.accessToken);
-      return true;
-    } catch {
+    if (!res.ok) {
       clearTokens();
       return false;
-    } finally {
-      isRefreshing = false;
-      refreshPromise = null;
     }
-  })();
 
+    const data = await res.json();
+    if (!data.accessToken) {
+      clearTokens();
+      return false;
+    }
+
+    setAccessToken(data.accessToken);
+    return true;
+  } catch {
+    clearTokens();
+    return false;
+  }
+}
+
+async function refreshTokens(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = performRefresh().finally(() => {
+    refreshPromise = null;
+  });
   return refreshPromise;
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+    });
+  } finally {
+    clearTokens();
+    if (typeof window !== 'undefined') localStorage.removeItem('user');
+  }
 }
 
 export class ApiError extends Error {
@@ -77,19 +93,19 @@ function canAttemptRefresh(url: string): boolean {
     '/auth/login',
     '/auth/register',
     '/auth/refresh',
+    '/auth/logout',
     '/auth/forgot-password',
     '/auth/reset-password',
   ].includes(url);
 }
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
-  let accessToken = getStoredAccessToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
 
-  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
   let res = await fetch(`${API_BASE}${url}`, {
     ...options,
@@ -99,9 +115,8 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 
   if (res.status === 401 && canAttemptRefresh(url)) {
     const refreshed = await refreshTokens();
-    if (refreshed) {
-      accessToken = getStoredAccessToken();
-      if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+    if (refreshed && accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
       res = await fetch(`${API_BASE}${url}`, {
         ...options,
         headers,
@@ -109,7 +124,10 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
       });
     } else {
       clearTokens();
-      if (typeof window !== 'undefined') window.location.href = '/auth/login';
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user');
+        window.location.href = '/auth/login';
+      }
       throw new ApiError('Session expired', 401, 'SESSION_EXPIRED');
     }
   }
@@ -117,13 +135,8 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   if (res.status === 204) return undefined as T;
 
   const data = await res.json();
-
   if (!res.ok) {
-    throw new ApiError(
-      data.error || `Request failed (${res.status})`,
-      res.status,
-      data.code,
-    );
+    throw new ApiError(data.error || `Request failed (${res.status})`, res.status, data.code);
   }
 
   return data;
