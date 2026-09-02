@@ -9,6 +9,7 @@ out/
 
 # turbo
 .turbo/
+node-compile-cache/
 
 # production
 build/
