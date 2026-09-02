@@ -64,6 +64,11 @@ async function refreshTokens(): Promise<boolean> {
   return refreshPromise;
 }
 
+export async function restoreSession(): Promise<boolean> {
+  if (accessToken) return true;
+  return refreshTokens();
+}
+
 export async function logout(): Promise<void> {
   try {
     await fetch(`${API_BASE}/auth/logout`, {
@@ -95,6 +100,7 @@ function canAttemptRefresh(url: string): boolean {
     '/auth/refresh',
     '/auth/logout',
     '/auth/forgot-password',
+    '/auth/validate-reset-token',
     '/auth/reset-password',
   ].includes(url);
 }
