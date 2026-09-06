@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FiMail, FiLock, FiUser, FiArrowRight, FiBriefcase } from 'react-icons/fi';
 import AuthLayout from '../../components/auth/AuthLayout';
 import { AuthInput } from '../../components/auth/AuthInput';
-import { api, ApiError } from '../../utils/api';
+import { api, ApiError, setAccessToken } from '../../utils/api';
 
 const registerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -47,10 +47,9 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.post<{ accessToken: string; refreshToken: string; user: any }>('/auth/register', data);
-      const { accessToken, refreshToken, user } = response;
-      localStorage.setItem('accessToken', accessToken);
-      if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+      const response = await api.post<{ accessToken: string; user: any }>('/auth/register', data);
+      const { accessToken, user } = response;
+      setAccessToken(accessToken);
       localStorage.setItem('user', JSON.stringify(user));
       router.push('/');
     } catch (err: any) {

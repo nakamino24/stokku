@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@stokku/ui'],
+  transpilePackages: ['@stokku/ui', 'react-hook-form'],
   images: {
     formats: ['image/avif', 'image/webp'],
   },

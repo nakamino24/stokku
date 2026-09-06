@@ -1,74 +1,85 @@
 // In production the API is served by the same Vercel deployment under /api,
-// so we use a relative base. Locally, set NEXT_PUBLIC_API_URL to override
-// (e.g. http://localhost:3001) — see next.config.mjs rewrites.
+// so we use a relative base. Locally, set NEXT_PUBLIC_API_URL to override.
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1`;
 
-interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-}
+let accessToken: string | null = null;
 
-function getStoredTokens(): TokenPair | null {
-  try {
-    const accessToken = localStorage.getItem('accessToken');
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (accessToken && refreshToken) return { accessToken, refreshToken };
-    return null;
-  } catch {
-    return null;
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+  if (typeof window !== 'undefined') {
+    // Remove credentials left by earlier builds. Non-secret user display data may remain.
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
   }
 }
 
-function storeTokens(tokens: TokenPair) {
-  localStorage.setItem('accessToken', tokens.accessToken);
-  localStorage.setItem('refreshToken', tokens.refreshToken);
-}
-
 export function clearTokens() {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
+  accessToken = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+  }
 }
 
-let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 
-async function refreshTokens(): Promise<boolean> {
-  if (isRefreshing && refreshPromise) return refreshPromise;
+async function performRefresh(retryRotatedOnce = true): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    });
 
-  isRefreshing = true;
-  refreshPromise = (async () => {
-    const tokens = getStoredTokens();
-    if (!tokens) return false;
+    if (res.status === 409 && retryRotatedOnce) {
+      // A different tab/request may have rotated the cookie milliseconds earlier.
+      // Give the browser a moment to apply the winning Set-Cookie, then retry once.
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      return performRefresh(false);
+    }
 
-    try {
-      const res = await fetch(`${API_BASE}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
-      });
-
-      if (!res.ok) {
-        clearTokens();
-        return false;
-      }
-
-      const data = await res.json();
-      const newTokens: TokenPair = {
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken || tokens.refreshToken,
-      };
-      storeTokens(newTokens);
-      return true;
-    } catch {
+    if (!res.ok) {
       clearTokens();
       return false;
-    } finally {
-      isRefreshing = false;
-      refreshPromise = null;
     }
-  })();
 
+    const data = await res.json();
+    if (!data.accessToken) {
+      clearTokens();
+      return false;
+    }
+
+    setAccessToken(data.accessToken);
+    return true;
+  } catch {
+    clearTokens();
+    return false;
+  }
+}
+
+async function refreshTokens(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = performRefresh().finally(() => {
+    refreshPromise = null;
+  });
   return refreshPromise;
+}
+
+export async function restoreSession(): Promise<boolean> {
+  if (accessToken) return true;
+  return refreshTokens();
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+    });
+  } finally {
+    clearTokens();
+    if (typeof window !== 'undefined') localStorage.removeItem('user');
+  }
 }
 
 export class ApiError extends Error {
@@ -82,26 +93,47 @@ export class ApiError extends Error {
   }
 }
 
+function canAttemptRefresh(url: string): boolean {
+  return ![
+    '/auth/login',
+    '/auth/register',
+    '/auth/refresh',
+    '/auth/logout',
+    '/auth/forgot-password',
+    '/auth/validate-reset-token',
+    '/auth/reset-password',
+  ].includes(url);
+}
+
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
-  let tokens = getStoredTokens();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
 
-  if (tokens?.accessToken) headers['Authorization'] = `Bearer ${tokens.accessToken}`;
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  let res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+  let res = await fetch(`${API_BASE}${url}`, {
+    ...options,
+    headers,
+    credentials: 'include',
+  });
 
-  if (res.status === 401 && tokens?.refreshToken) {
+  if (res.status === 401 && canAttemptRefresh(url)) {
     const refreshed = await refreshTokens();
-    if (refreshed) {
-      tokens = getStoredTokens();
-      if (tokens?.accessToken) headers['Authorization'] = `Bearer ${tokens.accessToken}`;
-      res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+    if (refreshed && accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+      res = await fetch(`${API_BASE}${url}`, {
+        ...options,
+        headers,
+        credentials: 'include',
+      });
     } else {
       clearTokens();
-      window.location.href = '/auth/login';
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user');
+        window.location.href = '/auth/login';
+      }
       throw new ApiError('Session expired', 401, 'SESSION_EXPIRED');
     }
   }
@@ -109,13 +141,8 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   if (res.status === 204) return undefined as T;
 
   const data = await res.json();
-
   if (!res.ok) {
-    throw new ApiError(
-      data.error || `Request failed (${res.status})`,
-      res.status,
-      data.code,
-    );
+    throw new ApiError(data.error || `Request failed (${res.status})`, res.status, data.code);
   }
 
   return data;

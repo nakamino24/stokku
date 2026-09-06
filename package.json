@@ -28,7 +28,7 @@
     "turbo": "^1.10.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "22.x"
   },
   "dependencies": {
     "@stokku/database": "workspace:^"

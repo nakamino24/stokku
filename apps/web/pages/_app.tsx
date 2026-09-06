@@ -3,9 +3,15 @@ import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import MainLayout from '../components/layout/MainLayout';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { restoreSession } from '../utils/api';
 import '../styles/globals.css';
 
-const publicPaths = ['/auth/login', '/auth/register'];
+const publicPaths = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+];
 
 function LoadingScreen() {
   return (
@@ -54,28 +60,49 @@ function RouteLoadingBar() {
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const [isAuth, setIsAuth] = useState<boolean | null>(null);
+  const isPublicRoute = publicPaths.includes(router.pathname);
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    setIsAuth(!!token);
+    let cancelled = false;
 
-    if (!token && !publicPaths.includes(router.pathname)) {
-      router.replace('/auth/login');
+    if (publicPaths.includes(router.pathname)) {
+      setIsAuth(false);
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [router.pathname]);
 
-  if (isAuth === null) return <LoadingScreen />;
+    setIsAuth(null);
+    restoreSession().then((authenticated) => {
+      if (cancelled) return;
+      setIsAuth(authenticated);
+      if (!authenticated) {
+        router.replace('/auth/login');
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router.pathname, router]);
+
+  if (isPublicRoute) {
+    return (
+      <ErrorBoundary>
+        <RouteLoadingBar />
+        <Component {...pageProps} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isAuth !== true) return <LoadingScreen />;
 
   return (
     <ErrorBoundary>
       <RouteLoadingBar />
-      {publicPaths.includes(router.pathname) || !isAuth ? (
+      <MainLayout>
         <Component {...pageProps} />
-      ) : (
-        <MainLayout>
-          <Component {...pageProps} />
-        </MainLayout>
-      )}
+      </MainLayout>
     </ErrorBoundary>
   );
 }
