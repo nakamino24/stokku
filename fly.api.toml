@@ -5,6 +5,9 @@ primary_region = "iad"
   dockerfile = "Dockerfile"
   target = "api"
 
+[deploy]
+  release_command = "pnpm --filter @stokku/database exec prisma migrate deploy"
+
 [http_service]
   internal_port = 3001
   force_https = true
