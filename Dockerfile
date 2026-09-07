@@ -1,4 +1,4 @@
-FROM node:18-alpine AS base
+FROM node:22-bookworm-slim AS base
 RUN corepack enable && corepack prepare pnpm@8.6.0 --activate
 WORKDIR /app
 
@@ -6,7 +6,8 @@ FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
-COPY packages/*/package.json packages/
+COPY packages/database/package.json packages/database/
+COPY packages/ui/package.json packages/ui/
 RUN pnpm install --frozen-lockfile
 
 FROM base AS builder

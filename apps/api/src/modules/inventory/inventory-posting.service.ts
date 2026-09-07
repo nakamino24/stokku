@@ -104,7 +104,7 @@ export const InventoryPostingService = {
     // serializes the first creation of a nullable inventory identity.
     const lockKey = balanceLockKey(normalizedIdentity);
     await tx.$queryRaw(Prisma.sql`
-      SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+      SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text AS lock_acquired
     `);
 
     const existing = await tx.stockLevel.findFirst({ where: normalizedIdentity });
