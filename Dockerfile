@@ -1,4 +1,7 @@
 FROM node:22-bookworm-slim AS base
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@8.6.0 --activate
 WORKDIR /app
 
@@ -7,6 +10,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/database/package.json packages/database/
+COPY packages/database/prisma packages/database/prisma/
 COPY packages/ui/package.json packages/ui/
 RUN pnpm install --frozen-lockfile
 

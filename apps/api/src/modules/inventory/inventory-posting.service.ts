@@ -123,7 +123,9 @@ export const InventoryPostingService = {
 
   async post(tx: InventoryTransaction, input: InventoryPostInput) {
     const quantity = asDecimal(input.quantity);
-    if (!quantity.isPositive()) throw AppError.badRequest('Inventory transaction quantity must be positive');
+    if (quantity.lessThanOrEqualTo(0)) {
+      throw AppError.badRequest('Inventory transaction quantity must be positive');
+    }
 
     const duplicate = await tx.stockMovement.findUnique({
       where: {

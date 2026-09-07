@@ -169,7 +169,7 @@ export const StockService = {
       throw AppError.badRequest('Source and destination inventory locations must be different');
     }
     const requested = new Prisma.Decimal(data.quantity);
-    if (!requested.isPositive()) throw AppError.badRequest('Transfer quantity must be positive');
+    if (requested.lessThanOrEqualTo(0)) throw AppError.badRequest('Transfer quantity must be positive');
 
     return withInventoryTransaction(async (tx) => {
       const correlationId = `TRANSFER:${data.idempotencyKey}`;
@@ -227,7 +227,7 @@ export const StockService = {
       let remaining = requested;
       let index = 0;
       for (const source of sourceBalances) {
-        if (!remaining.isPositive()) break;
+        if (remaining.lessThanOrEqualTo(0)) break;
         const available = new Prisma.Decimal(source.available);
         const quantity = available.lessThan(remaining) ? available : remaining;
 

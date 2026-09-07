@@ -243,7 +243,7 @@ export const PurchaseOrderService = {
         const acceptedQty = input.acceptedQty === undefined
           ? receivedQty.minus(rejectedQty)
           : new Prisma.Decimal(input.acceptedQty);
-        if (!receivedQty.isPositive() || acceptedQty.isNegative() || rejectedQty.isNegative()) {
+        if (receivedQty.lessThanOrEqualTo(0) || acceptedQty.isNegative() || rejectedQty.isNegative()) {
           throw AppError.badRequest('Receipt quantities are invalid');
         }
         if (!acceptedQty.plus(rejectedQty).equals(receivedQty)) {
@@ -273,7 +273,7 @@ export const PurchaseOrderService = {
           },
         });
 
-        if (acceptedQty.isPositive()) {
+        if (acceptedQty.greaterThan(0)) {
           const balance = await InventoryPostingService.ensureBalance(tx, {
             organizationId: orgId,
             warehouseId: data.warehouseId,
@@ -302,7 +302,7 @@ export const PurchaseOrderService = {
 
       const currentItems = await tx.purchaseOrderItem.findMany({ where: { purchaseOrderId: id } });
       const allReceived = currentItems.every((item) => item.receivedQty.greaterThanOrEqualTo(item.quantity));
-      const anyReceived = currentItems.some((item) => item.receivedQty.isPositive());
+      const anyReceived = currentItems.some((item) => item.receivedQty.greaterThan(0));
       const status: PurchaseOrderStatus = allReceived
         ? 'RECEIVED'
         : anyReceived

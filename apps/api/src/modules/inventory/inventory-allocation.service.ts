@@ -37,10 +37,10 @@ export const InventoryAllocationService = {
       });
 
       for (const balance of balances) {
-        if (!remaining.isPositive()) break;
+        if (remaining.lessThanOrEqualTo(0)) break;
         const available = new Prisma.Decimal(balance.available);
         const quantity = available.lessThan(remaining) ? available : remaining;
-        if (!quantity.isPositive()) continue;
+        if (quantity.lessThanOrEqualTo(0)) continue;
 
         await InventoryPostingService.post(tx, {
           organizationId: command.organizationId,
@@ -70,7 +70,7 @@ export const InventoryAllocationService = {
         remaining = remaining.minus(quantity);
       }
 
-      if (remaining.isPositive()) {
+      if (remaining.greaterThan(0)) {
         throw AppError.conflict(
           `Insufficient available inventory for ${item.product.name}; short by ${remaining.toString()}`,
         );
