@@ -1,6 +1,6 @@
-// In production the API is served by the same Vercel deployment under /api,
-// so we use a relative base. Locally, set NEXT_PUBLIC_API_URL to override.
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1`;
+// Browser uses same-origin /api/v1 proxied by Vercel to Render (API_ORIGIN server-only).
+// NEXT_PUBLIC_API_URL is retained only as an optional dev/test override.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1` : '/api/v1';
 
 let accessToken: string | null = null;
 

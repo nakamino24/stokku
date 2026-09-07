@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: stokku-api
+    runtime: node
+    plan: free
+    branch: main
+    rootDir: .
+    # Zero-cost native Node deployment (no Docker, no disk, no paid instance).
+    # Render injects PORT automatically; app binds to 0.0.0.0:$PORT.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @stokku/database build && pnpm --filter @stokku/api build
+    startCommand: pnpm --filter @stokku/api start
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.11.0
+      - key: DATABASE_URL
+        sync: false
+      - key: ACCESS_TOKEN_SECRET
+        sync: false
+      - key: REFRESH_TOKEN_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: LOG_LEVEL
+        value: info
