@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: 18
+  NODE_VERSION: 22
   PNPM_VERSION: 8.6.0
   DATABASE_URL: postgresql://stokku:stokku@localhost:5432/stokku-test
 
@@ -35,14 +35,11 @@ jobs:
 
       - run: pnpm lint
 
-      - name: Typecheck API
-        run: pnpm --filter @stokku/api exec tsc --noEmit --skipLibCheck
+      - name: Validate Prisma schema
+        run: pnpm --filter @stokku/database exec prisma validate
 
-      - name: Typecheck Web
-        run: pnpm --filter @stokku/web exec tsc --noEmit --skipLibCheck
-
-      - name: Typecheck packages
-        run: pnpm --filter @stokku/database exec tsc --noEmit --skipLibCheck
+      - name: Typecheck workspace
+        run: pnpm typecheck
 
   test:
     name: Unit & Integration Tests
@@ -89,13 +86,21 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
-      - name: Run API Tests
-        run: pnpm --filter @stokku/api test
+      - name: Run Inventory Domain & Reconciliation Tests
+        run: pnpm --filter @stokku/api test -- --runInBand inventory.integration.test.ts
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      - name: Run API Unit Tests
+        run: pnpm --filter @stokku/api test -- --runInBand --testPathIgnorePatterns=inventory.integration.test.ts
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Run Database Contract Tests
+        run: pnpm --filter @stokku/database test -- --runInBand
+
       - name: Run Web Tests
-        run: pnpm --filter @stokku/web test
+        run: pnpm --filter @stokku/web test -- --runInBand
         env:
           NEXT_PUBLIC_API_URL: http://localhost:4000
 
