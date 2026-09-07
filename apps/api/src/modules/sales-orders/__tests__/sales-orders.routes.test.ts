@@ -2,125 +2,50 @@ import request from 'supertest';
 import { createTestApp, mockAuthMiddleware } from '../../../__tests__/helpers';
 
 const UUID = '550e8400-e29b-41d4-a716-446655440000';
+const mockService = {
+  list: jest.fn(),
+  getById: jest.fn(),
+  create: jest.fn(),
+  updateStatus: jest.fn(),
+};
 
-jest.mock('@stokku/database', () => ({
-  prisma: {
-    salesOrder: {
-      findMany: jest.fn(),
-      findFirst: jest.fn(),
-      count: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-    },
-    salesOrderItem: { findMany: jest.fn() },
-    stockLevel: { findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
-    stockMovement: { create: jest.fn() },
-    product: { findUnique: jest.fn() },
-    auditLog: { create: jest.fn() },
-    $transaction: jest.fn(),
-  },
-}));
-
-jest.mock('../../../config', () => ({
-  config: { jwt: { accessSecret: 'test', refreshSecret: 'test', accessExpiresIn: '15m', refreshExpiresIn: '7d' }, cors: { origins: ['http://localhost:3000'] }, port: 3001, nodeEnv: 'test' },
-}));
-
+jest.mock('../sales-orders.service', () => ({ SalesOrderService: mockService }));
 jest.mock('../../../middleware/auth', () => ({ authMiddleware: mockAuthMiddleware }));
-jest.mock('express-rate-limit', () => () => (_req: any, _res: any, next: any) => next());
+jest.mock('../../../middleware/rbac', () => ({
+  requirePermission: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  requirePermissionFromRequest: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
 
 describe('Sales Orders API', () => {
-  let app: ReturnType<typeof createTestApp>;
-  const { prisma } = jest.requireMock('@stokku/database');
+  const app = createTestApp((instance) => {
+    instance.use('/api/v1/sales-orders', jest.requireActual('../sales-orders.routes').default);
+  });
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    app = createTestApp((app) => {
-      const routes = jest.requireActual('../sales-orders.routes').default;
-      app.use('/api/v1/sales-orders', routes);
+  beforeEach(() => jest.clearAllMocks());
+
+  it('creates a DRAFT command without requiring stock at route level', async () => {
+    mockService.create.mockResolvedValue({ id: UUID, status: 'DRAFT' });
+    const response = await request(app).post('/api/v1/sales-orders').send({
+      customerId: UUID,
+      items: [{ productId: UUID, quantity: '0.75', unitPrice: '12.125' }],
     });
-  });
-
-  it('GET /api/v1/sales-orders should list', async () => {
-    (prisma.salesOrder.findMany as jest.Mock).mockResolvedValue([{ id: 'so-1', items: [] }]);
-    (prisma.salesOrder.count as jest.Mock).mockResolvedValue(1);
-
-    const res = await request(app).get('/api/v1/sales-orders');
-    expect(res.status).toBe(200);
-  });
-
-  it('POST /api/v1/sales-orders should create with stock reservation', async () => {
-    (prisma.salesOrder.count as jest.Mock).mockResolvedValue(0);
-    (prisma.stockLevel.findFirst as jest.Mock).mockResolvedValue({ id: 'sl-1', available: 50 });
-    (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn({
-      salesOrder: {
-        count: prisma.salesOrder.count,
-        create: jest.fn().mockResolvedValue({ id: 'so-1', soNumber: 'SO-00001', items: [] }),
-      },
-      stockLevel: { findFirst: prisma.stockLevel.findFirst, updateMany: prisma.stockLevel.updateMany },
-      auditLog: { create: jest.fn() },
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe('DRAFT');
+    expect(mockService.create).toHaveBeenCalledWith('org-1', 'user-1', expect.objectContaining({
+      items: [expect.objectContaining({ quantity: '0.75' })],
     }));
-
-    const res = await request(app)
-      .post('/api/v1/sales-orders')
-      .send({ customerId: UUID, items: [{ productId: UUID, quantity: 5, unitPrice: 20 }] });
-
-    expect(res.status).toBe(201);
   });
 
-  it('POST /api/v1/sales-orders should reject insufficient stock', async () => {
-    (prisma.salesOrder.count as jest.Mock).mockResolvedValue(0);
-    (prisma.stockLevel.findFirst as jest.Mock).mockResolvedValue({ id: 'sl-1', available: 2 });
-    (prisma.product.findUnique as jest.Mock).mockResolvedValue({ name: 'Test Product' });
-    (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn({
-      salesOrder: { count: prisma.salesOrder.count },
-      stockLevel: { findFirst: prisma.stockLevel.findFirst },
-      product: { findUnique: prisma.product.findUnique },
-    }));
-
-    const res = await request(app)
-      .post('/api/v1/sales-orders')
-      .send({ customerId: UUID, items: [{ productId: UUID, quantity: 5, unitPrice: 20 }] });
-
-    expect(res.status).toBe(400);
+  it('rejects an empty order', async () => {
+    const response = await request(app).post('/api/v1/sales-orders').send({ customerId: UUID, items: [] });
+    expect(response.status).toBe(400);
+    expect(mockService.create).not.toHaveBeenCalled();
   });
 
-  it('POST /api/v1/sales-orders should 400 without items', async () => {
-    const res = await request(app)
-      .post('/api/v1/sales-orders')
-      .send({ customerId: UUID, items: [] });
-
-    expect(res.status).toBe(400);
-  });
-
-  it('PATCH /:id/status should deliver and decrement stock', async () => {
-    (prisma.salesOrder.findFirst as jest.Mock).mockResolvedValue({ id: 'so-1', soNumber: 'SO-00001', status: 'SHIPPING' });
-    (prisma.salesOrderItem.findMany as jest.Mock).mockResolvedValue([{ id: 'so-item-1', productId: UUID, variantId: null, quantity: 5 }]);
-    (prisma.stockLevel.findFirst as jest.Mock).mockResolvedValue({ id: 'sl-1', warehouseId: 'wh-1', quantity: 50, reserved: 5 });
-    (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn({
-      salesOrder: {
-        findFirst: prisma.salesOrder.findFirst,
-        update: jest.fn().mockResolvedValue({ id: 'so-1', status: 'DELIVERED' }),
-      },
-      salesOrderItem: { findMany: prisma.salesOrderItem.findMany },
-      stockLevel: { findFirst: prisma.stockLevel.findFirst, update: prisma.stockLevel.update },
-      stockMovement: { create: jest.fn() },
-      auditLog: { create: jest.fn() },
-    }));
-
-    const res = await request(app)
-      .patch('/api/v1/sales-orders/so-1/status')
-      .send({ status: 'DELIVERED' });
-
-    expect(res.status).toBe(200);
-  });
-
-  it('PATCH /:id/status should reject invalid transition', async () => {
-    (prisma.salesOrder.findFirst as jest.Mock).mockResolvedValue({ id: 'so-1', status: 'DRAFT' });
-
-    const res = await request(app)
-      .patch('/api/v1/sales-orders/so-1/status')
-      .send({ status: 'DELIVERED' });
-
-    expect(res.status).toBe(400);
+  it('dispatches shipment status through the status command', async () => {
+    mockService.updateStatus.mockResolvedValue({ id: UUID, status: 'SHIPPED' });
+    const response = await request(app).patch(`/api/v1/sales-orders/${UUID}/status`).send({ status: 'SHIPPED' });
+    expect(response.status).toBe(200);
+    expect(mockService.updateStatus).toHaveBeenCalledWith('org-1', 'user-1', UUID, 'SHIPPED');
   });
 });

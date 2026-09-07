@@ -17,6 +17,18 @@ jest.mock('@stokku/database', () => ({
     auditLog: {
       create: jest.fn(),
     },
+    role: { create: jest.fn() },
+    organizationMember: { create: jest.fn() },
+    refreshSession: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    passwordResetToken: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+    },
     $transaction: jest.fn(),
   },
 }));
@@ -39,6 +51,12 @@ jest.mock('../../../config', () => ({
       accessExpiresIn: '15m',
       refreshExpiresIn: '7d',
     },
+    auth: {
+      refreshSessionTtlSeconds: 604800,
+      refreshReuseGraceSeconds: 2,
+      passwordResetTtlMinutes: 30,
+    },
+    appUrl: 'http://localhost:3000',
   },
 }));
 
@@ -49,6 +67,16 @@ function mockTransaction<T>(fn: (tx: any) => T): Promise<T> {
     user: { create: prisma.user.create, findUnique: prisma.user.findUnique },
     organization: { create: prisma.organization.create, update: prisma.organization.update },
     auditLog: { create: prisma.auditLog.create },
+    role: { create: prisma.role.create },
+    organizationMember: { create: prisma.organizationMember.create },
+    refreshSession: {
+      create: prisma.refreshSession.create,
+      updateMany: prisma.refreshSession.updateMany,
+    },
+    passwordResetToken: {
+      create: prisma.passwordResetToken.create,
+      updateMany: prisma.passwordResetToken.updateMany,
+    },
   };
   return Promise.resolve(fn(tx));
 }
@@ -57,6 +85,12 @@ describe('AuthService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.$transaction as jest.Mock).mockImplementation(mockTransaction);
+    (prisma.role.create as jest.Mock).mockImplementation(({ data }: { data: { slug: string } }) => ({
+      id: `role-${data.slug}`,
+      slug: data.slug,
+    }));
+    (prisma.refreshSession.create as jest.Mock).mockResolvedValue({ id: 'session-1' });
+    (prisma.refreshSession.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
   });
 
   describe('register', () => {
@@ -134,11 +168,13 @@ describe('AuthService', () => {
 
   describe('refresh', () => {
     it('should return new tokens for valid refresh token', async () => {
-      (jwt.verify as jest.Mock).mockReturnValue({ id: 'user-1' });
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
-        id: 'user-1', email: 'demo@test.com', name: 'Demo', isActive: true,
-        role: 'ADMIN', organizationId: 'org-1',
-        organization: { slug: 'demo-org' },
+      (prisma.refreshSession.findUnique as jest.Mock).mockResolvedValue({
+        id: 'session-1', userId: 'user-1', familyId: 'family-1', revokedAt: null,
+        expiresAt: new Date(Date.now() + 60_000),
+        user: {
+          id: 'user-1', email: 'demo@test.com', name: 'Demo', isActive: true,
+          role: 'ADMIN', organizationId: 'org-1', organization: { slug: 'demo-org' },
+        },
       });
       (jwt.sign as jest.Mock).mockReturnValue('new-token');
 
@@ -148,7 +184,7 @@ describe('AuthService', () => {
     });
 
     it('should throw unauthorized for invalid token', async () => {
-      (jwt.verify as jest.Mock).mockReturnValue(null);
+      (prisma.refreshSession.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(AuthService.refresh('invalid')).rejects.toMatchObject({ statusCode: 401 });
     });
