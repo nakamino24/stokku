@@ -1,4 +1,4 @@
-import { prisma, Prisma } from '@stokku/database';
+import { OrganizationRole, prisma, Prisma } from '@stokku/database';
 import { AppError } from '../../utils/errors';
 import { parsePagination, paginatedResult } from '../../utils/pagination';
 
@@ -28,14 +28,26 @@ export const UsersService = {
     return paginatedResult(data, total, pagination);
   },
 
-  async updateRole(orgId: string, userId: string, role: string) {
+  async updateRole(orgId: string, userId: string, role: OrganizationRole) {
     const user = await prisma.user.findFirst({ where: { id: userId, organizationId: orgId } });
     if (!user) throw AppError.notFound('User not found');
 
-    return prisma.user.update({
-      where: { id: userId },
-      data: { role: role as any },
-      select: { id: true, name: true, email: true, role: true },
+    return prisma.$transaction(async (tx) => {
+      const assignedRole = await tx.role.findFirst({
+        where: { organizationId: orgId, slug: role.toLowerCase(), isSystem: true },
+      });
+      await tx.organizationMember.upsert({
+        where: { organizationId_userId: { organizationId: orgId, userId } },
+        update: { role, roleId: assignedRole?.id ?? null },
+        create: { organizationId: orgId, userId, role, roleId: assignedRole?.id ?? null },
+      });
+      return tx.user.update({
+        where: { id: userId },
+        // Transitional mirror for existing access tokens. OrganizationMember is
+        // the authoritative role assignment for permission checks.
+        data: { role },
+        select: { id: true, name: true, email: true, role: true },
+      });
     });
   },
 

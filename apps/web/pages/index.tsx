@@ -76,14 +76,14 @@ export default function Dashboard() {
           {data?.recentMovements?.length > 0 ? data.recentMovements.slice(0, 10).map((m: any) => (
             <div key={m.id} className="flex items-center gap-3 p-3 text-sm">
               <div className={`w-2 h-2 rounded-full ${
-                m.type === 'IN' ? 'bg-green-500' :
-                m.type === 'OUT' ? 'bg-red-500' :
-                m.type === 'TRANSFER' ? 'bg-blue-500' : 'bg-amber-500'
+                ['RECEIPT', 'TRANSFER_IN', 'RETURN'].includes(m.type) ? 'bg-green-500' :
+                ['ISSUE', 'TRANSFER_OUT', 'SHIPMENT'].includes(m.type) ? 'bg-red-500' :
+                ['ALLOCATION', 'DEALLOCATION'].includes(m.type) ? 'bg-blue-500' : 'bg-amber-500'
               }`} />
               <span className="text-gray-700">{m.product?.name}</span>
               <span className={`font-medium ${
-                m.quantity > 0 ? 'text-green-600' : 'text-red-600'
-              }`}>{m.quantity > 0 ? `+${m.quantity}` : m.quantity}</span>
+                Number(m.onHandDelta) > 0 ? 'text-green-600' : Number(m.onHandDelta) < 0 ? 'text-red-600' : 'text-blue-600'
+              }`}>{Number(m.onHandDelta) > 0 ? `+${m.onHandDelta}` : m.onHandDelta}</span>
               <span className="text-gray-400 text-xs">{m.warehouse?.name}</span>
               <span className="text-gray-400 text-xs ml-auto">{new Date(m.createdAt).toLocaleDateString()}</span>
             </div>

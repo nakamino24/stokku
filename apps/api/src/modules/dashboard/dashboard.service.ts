@@ -1,4 +1,11 @@
-import { prisma } from '@stokku/database';
+import { PurchaseOrderStatus, prisma } from '@stokku/database';
+
+const PENDING_PURCHASE_STATUSES: PurchaseOrderStatus[] = [
+  'PENDING_APPROVAL',
+  'APPROVED',
+  'SENT',
+  'PARTIALLY_RECEIVED',
+];
 
 export const DashboardService = {
   async getSummary(orgId: string) {
@@ -7,16 +14,16 @@ export const DashboardService = {
       prisma.supplier.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
       prisma.customer.count({ where: { organizationId: orgId, isActive: true } }),
       prisma.warehouse.count({ where: { organizationId: orgId, isActive: true } }),
-      prisma.stockLevel.aggregate({ where: { organizationId: orgId }, _sum: { quantity: true } }),
-      prisma.purchaseOrder.count({ where: { organizationId: orgId, status: { in: ['PENDING_APPROVAL', 'APPROVED', 'SENT', 'PARTIALLY_RECEIVED'] as any } } }),
-      prisma.salesOrder.count({ where: { organizationId: orgId, status: { in: ['CONFIRMED', 'PICKING', 'SHIPPING'] as any } } }),
+      prisma.stockLevel.aggregate({ where: { organizationId: orgId }, _sum: { onHand: true } }),
+      prisma.purchaseOrder.count({ where: { organizationId: orgId, status: { in: PENDING_PURCHASE_STATUSES } } }),
+      prisma.salesOrder.count({ where: { organizationId: orgId, status: { in: ['CONFIRMED', 'ALLOCATED', 'PICKING', 'PICKED', 'PACKED'] } } }),
     ]);
 
     const lowStockCount = await prisma.stockLevel.count({
       where: {
         organizationId: orgId,
         reorderPoint: { not: null },
-        quantity: { lte: prisma.stockLevel.fields.reorderPoint },
+        available: { lte: prisma.stockLevel.fields.reorderPoint },
       },
     });
 
@@ -37,7 +44,7 @@ export const DashboardService = {
         suppliers: supplierCount,
         customers: customerCount,
         warehouses: warehouseCount,
-        totalStock: totalStock._sum.quantity || 0,
+        totalStock: totalStock._sum.onHand || 0,
         pendingPO,
         pendingSO,
         lowStockAlerts: lowStockCount,
@@ -51,13 +58,13 @@ export const DashboardService = {
       where: {
         organizationId: orgId,
         reorderPoint: { not: null },
-        quantity: { lte: prisma.stockLevel.fields.reorderPoint },
+        available: { lte: prisma.stockLevel.fields.reorderPoint },
       },
       include: {
         product: { select: { name: true, sku: true, unit: true } },
         warehouse: { select: { name: true } },
       },
-      orderBy: { quantity: 'asc' },
+      orderBy: { available: 'asc' },
     });
   },
 };

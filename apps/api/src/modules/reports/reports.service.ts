@@ -1,4 +1,4 @@
-import { prisma } from '@stokku/database';
+import { Prisma, prisma } from '@stokku/database';
 import { parsePagination, paginatedResult } from '../../utils/pagination';
 
 export const ReportsService = {
@@ -8,27 +8,33 @@ export const ReportsService = {
       include: { product: { select: { name: true, costPrice: true, unitPrice: true } }, warehouse: { select: { name: true } } },
     });
 
-    const totalCostValue = stockLevels.reduce((sum, s) => sum + Number(s.product.costPrice) * s.quantity, 0);
-    const totalRetailValue = stockLevels.reduce((sum, s) => sum + Number(s.product.unitPrice) * s.quantity, 0);
+    const totalCostValue = stockLevels.reduce(
+      (sum, stock) => sum.plus(stock.product.costPrice.times(stock.onHand)),
+      new Prisma.Decimal(0),
+    );
+    const totalRetailValue = stockLevels.reduce(
+      (sum, stock) => sum.plus(stock.product.unitPrice.times(stock.onHand)),
+      new Prisma.Decimal(0),
+    );
 
     return {
-      totalCostValue,
-      totalRetailValue,
-      potentialProfit: totalRetailValue - totalCostValue,
+      totalCostValue: totalCostValue.toString(),
+      totalRetailValue: totalRetailValue.toString(),
+      potentialProfit: totalRetailValue.minus(totalCostValue).toString(),
       items: stockLevels.map(s => ({
         product: s.product.name,
         warehouse: s.warehouse.name,
-        quantity: s.quantity,
+        quantity: s.onHand,
         costPrice: s.product.costPrice,
         unitPrice: s.product.unitPrice,
-        totalCost: Number(s.product.costPrice) * s.quantity,
-        totalRetail: Number(s.product.unitPrice) * s.quantity,
+        totalCost: s.product.costPrice.times(s.onHand).toString(),
+        totalRetail: s.product.unitPrice.times(s.onHand).toString(),
       })),
     };
   },
 
   async stockMovement(orgId: string, startDate?: string, endDate?: string) {
-    const where: any = { organizationId: orgId };
+    const where: Prisma.StockMovementWhereInput = { organizationId: orgId };
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
@@ -41,16 +47,20 @@ export const ReportsService = {
       orderBy: { createdAt: 'desc' },
     });
 
-    const byType = movements.reduce((acc: Record<string, number>, m) => {
-      acc[m.type] = (acc[m.type] || 0) + m.quantity;
+    const byType = movements.reduce((acc: Record<string, Prisma.Decimal>, m) => {
+      acc[m.type] = (acc[m.type] ?? new Prisma.Decimal(0)).plus(m.onHandDelta);
       return acc;
     }, {});
 
-    return { total: movements.length, byType, movements };
+    return {
+      total: movements.length,
+      byType: Object.fromEntries(Object.entries(byType).map(([type, quantity]) => [type, quantity.toString()])),
+      movements,
+    };
   },
 
   async sales(orgId: string, startDate?: string, endDate?: string) {
-    const where: any = { organizationId: orgId, status: 'DELIVERED' };
+    const where: Prisma.SalesOrderWhereInput = { organizationId: orgId, status: 'DELIVERED' };
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
@@ -63,14 +73,22 @@ export const ReportsService = {
       orderBy: { createdAt: 'desc' },
     });
 
-    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+    const totalRevenue = orders.reduce((sum, order) => sum.plus(order.totalAmount), new Prisma.Decimal(0));
     const totalOrders = orders.length;
 
-    return { totalOrders, totalRevenue, averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0, orders };
+    return {
+      totalOrders,
+      totalRevenue: totalRevenue.toString(),
+      averageOrderValue: totalOrders > 0 ? totalRevenue.dividedBy(totalOrders).toString() : '0',
+      orders,
+    };
   },
 
   async purchasing(orgId: string, startDate?: string, endDate?: string) {
-    const where: any = { organizationId: orgId, status: { in: ['RECEIVED', 'PARTIALLY_RECEIVED'] } };
+    const where: Prisma.PurchaseOrderWhereInput = {
+      organizationId: orgId,
+      status: { in: ['RECEIVED', 'PARTIALLY_RECEIVED'] },
+    };
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
@@ -83,8 +101,8 @@ export const ReportsService = {
       orderBy: { createdAt: 'desc' },
     });
 
-    const totalSpent = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
-    return { totalOrders: orders.length, totalSpent, orders };
+    const totalSpent = orders.reduce((sum, order) => sum.plus(order.totalAmount), new Prisma.Decimal(0));
+    return { totalOrders: orders.length, totalSpent: totalSpent.toString(), orders };
   },
 
   async inventoryValuation(orgId: string) {
@@ -97,32 +115,32 @@ export const ReportsService = {
     });
 
     const valuation = products.map(p => {
-      const totalQty = p.stockLevels.reduce((sum, s) => sum + s.quantity, 0);
+      const totalQty = p.stockLevels.reduce((sum, stock) => sum.plus(stock.onHand), new Prisma.Decimal(0));
       const avgCost = p.variants.length > 0
-        ? p.variants.reduce((sum, v) => sum + Number(v.costPrice), 0) / p.variants.length
-        : Number(p.costPrice);
+        ? p.variants.reduce((sum, variant) => sum.plus(variant.costPrice), new Prisma.Decimal(0)).dividedBy(p.variants.length)
+        : p.costPrice;
       return {
         product: p.name,
         sku: p.sku,
         totalQuantity: totalQty,
         avgCost,
-        totalValue: avgCost * totalQty,
+        totalValue: avgCost.times(totalQty),
       };
     });
 
     return {
-      totalValue: valuation.reduce((sum, v) => sum + v.totalValue, 0),
+      totalValue: valuation.reduce((sum, item) => sum.plus(item.totalValue), new Prisma.Decimal(0)).toString(),
       items: valuation,
     };
   },
 
-  async auditLog(orgId: string, query: Record<string, any>) {
-    const page = Math.max(1, parseInt(query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(query.limit) || 50));
+  async auditLog(orgId: string, query: Record<string, unknown>) {
+    const page = Math.max(1, Number.parseInt(String(query.page ?? '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(query.limit ?? '50'), 10) || 50));
 
-    const where: any = { organizationId: orgId };
-    if (query.entityType) where.entityType = query.entityType;
-    if (query.action) where.action = query.action;
+    const where: Prisma.AuditLogWhereInput = { organizationId: orgId };
+    if (typeof query.entityType === 'string') where.entityType = query.entityType;
+    if (typeof query.action === 'string') where.action = query.action;
 
     const [data, total] = await Promise.all([
       prisma.auditLog.findMany({

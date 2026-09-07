@@ -2,12 +2,12 @@ import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { validate } from '../../middleware/validate';
 import { authMiddleware } from '../../middleware/auth';
-import { requireRole } from '../../middleware/rbac';
+import { requirePermission } from '../../middleware/rbac';
 import { UsersService } from './users.service';
 import { updateUserRoleSchema } from './users.schema';
 
 const router = Router();
-router.use(authMiddleware, requireRole('ADMIN'));
+router.use(authMiddleware, requirePermission('user.manage'));
 
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user;

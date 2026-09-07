@@ -2,11 +2,12 @@ import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { validate } from '../../middleware/validate';
 import { authMiddleware } from '../../middleware/auth';
+import { requirePermission } from '../../middleware/rbac';
 import { RolesService } from './roles.service';
 import { createRoleSchema, updateRoleSchema } from './roles.schema';
 
 const router = Router();
-router.use(authMiddleware);
+router.use(authMiddleware, requirePermission('role.manage'));
 
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user;

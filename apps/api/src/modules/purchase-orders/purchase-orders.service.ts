@@ -1,150 +1,336 @@
-import { prisma, Prisma, PurchaseOrderStatus } from '@stokku/database';
+import { Prisma, PurchaseOrderStatus, prisma } from '@stokku/database';
+import { DocumentSequenceService } from '../inventory/document-sequence.service';
+import {
+  DecimalInput,
+  InventoryPostingService,
+  withInventoryTransaction,
+} from '../inventory/inventory-posting.service';
+import { validateInventoryIdentity } from '../inventory/inventory-validation';
 import { AppError } from '../../utils/errors';
 import { parsePagination, paginatedResult } from '../../utils/pagination';
 
+interface PurchaseOrderInput {
+  supplierId: string;
+  expectedDate?: string;
+  notes?: string;
+  taxRate?: DecimalInput;
+  items: Array<{
+    productId: string;
+    variantId?: string | null;
+    quantity: DecimalInput;
+    unitPrice: DecimalInput;
+  }>;
+}
+
+interface GoodsReceiptInput {
+  warehouseId: string;
+  binId?: string | null;
+  supplierDeliveryReference?: string;
+  idempotencyKey: string;
+  items: Array<{
+    itemId: string;
+    receivedQty: DecimalInput;
+    acceptedQty?: DecimalInput;
+    rejectedQty?: DecimalInput;
+  }>;
+}
+
 const poInclude = {
   supplier: true,
-  items: { include: { product: { select: { name: true, sku: true, unit: true } }, variant: { select: { name: true, sku: true } } } },
+  items: {
+    include: {
+      product: { select: { name: true, sku: true, unit: true } },
+      variant: { select: { name: true, sku: true } },
+      receiptLines: { include: { goodsReceipt: { select: { receiptNumber: true, receivedAt: true } } } },
+    },
+  },
+  goodsReceipts: { orderBy: { receivedAt: 'desc' as const } },
   createdBy: { select: { name: true } },
 } satisfies Prisma.PurchaseOrderInclude;
 
 export const PurchaseOrderService = {
-  async list(orgId: string, query: Record<string, any>) {
+  async list(orgId: string, query: Record<string, unknown>) {
     const pagination = parsePagination(query);
     const where: Prisma.PurchaseOrderWhereInput = { organizationId: orgId };
-    if (query.status) where.status = query.status;
-    if (query.supplierId) where.supplierId = query.supplierId;
+    if (typeof query.status === 'string') where.status = query.status as PurchaseOrderStatus;
+    if (typeof query.supplierId === 'string') where.supplierId = query.supplierId;
 
     const [data, total] = await Promise.all([
-      prisma.purchaseOrder.findMany({ where, include: poInclude, skip: (pagination.page - 1) * pagination.limit, take: pagination.limit, orderBy: { createdAt: 'desc' } }),
+      prisma.purchaseOrder.findMany({
+        where,
+        include: poInclude,
+        skip: (pagination.page - 1) * pagination.limit,
+        take: pagination.limit,
+        orderBy: { createdAt: 'desc' },
+      }),
       prisma.purchaseOrder.count({ where }),
     ]);
     return paginatedResult(data, total, pagination);
   },
 
   async getById(orgId: string, id: string) {
-    const po = await prisma.purchaseOrder.findFirst({ where: { id, organizationId: orgId }, include: poInclude });
-    if (!po) throw AppError.notFound('Purchase order not found');
-    return po;
-  },
-
-  async create(orgId: string, userId: string, data: any) {
-    const count = await prisma.purchaseOrder.count({ where: { organizationId: orgId } });
-    const poNumber = `PO-${String(count + 1).padStart(5, '0')}-${Date.now().toString(36).toUpperCase()}`;
-
-    const items = data.items.map((item: any) => ({
-      productId: item.productId,
-      variantId: item.variantId || null,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      totalPrice: item.quantity * item.unitPrice,
-    }));
-
-    const subtotal = items.reduce((sum: number, item: any) => sum + Number(item.totalPrice), 0);
-    const taxAmount = subtotal * (data.taxRate || 0);
-    const totalAmount = subtotal + taxAmount;
-
-    const po = await prisma.purchaseOrder.create({
-      data: {
-        organizationId: orgId, poNumber, supplierId: data.supplierId,
-        expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
-        notes: data.notes, subtotal, taxAmount, totalAmount, createdById: userId,
-        items: { create: items },
-      },
+    const order = await prisma.purchaseOrder.findFirst({
+      where: { id, organizationId: orgId },
       include: poInclude,
     });
-
-    await prisma.auditLog.create({ data: { organizationId: orgId, userId, action: 'CREATE', entityType: 'PurchaseOrder', entityId: po.id } });
-    return po;
+    if (!order) throw AppError.notFound('Purchase order not found');
+    return order;
   },
 
-  async updateStatus(orgId: string, userId: string, id: string, status: PurchaseOrderStatus) {
-    const po = await prisma.purchaseOrder.findFirst({ where: { id, organizationId: orgId } });
-    if (!po) throw AppError.notFound('Purchase order not found');
-
-    const validTransitions: Record<string, string[]> = {
-      DRAFT: ['PENDING_APPROVAL', 'CANCELLED'],
-      PENDING_APPROVAL: ['APPROVED', 'CANCELLED'],
-      APPROVED: ['SENT', 'CANCELLED'],
-      SENT: ['PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'],
-      PARTIALLY_RECEIVED: ['RECEIVED', 'CANCELLED'],
-    };
-
-    if (!validTransitions[po.status]?.includes(status)) {
-      throw AppError.badRequest(`Cannot transition from ${po.status} to ${status}`);
-    }
-
-    const updateData: any = { status };
-    if (status === 'RECEIVED') updateData.receivedDate = new Date();
-
-    const updated = await prisma.purchaseOrder.update({ where: { id }, data: updateData, include: poInclude });
-    await prisma.auditLog.create({ data: { organizationId: orgId, userId, action: 'UPDATE', entityType: 'PurchaseOrder', entityId: id } });
-    return updated;
-  },
-
-  async receive(orgId: string, userId: string, warehouseId: string, id: string, items: { itemId: string; receivedQty: number }[]) {
-    if (!warehouseId) throw AppError.badRequest('warehouseId is required for receiving stock');
-
-    const result = await (prisma.$transaction as any)(async (tx: any) => {
-      const po = await tx.purchaseOrder.findFirst({
-        where: { id, organizationId: orgId },
-        include: { items: true },
+  async create(orgId: string, userId: string, data: PurchaseOrderInput) {
+    return withInventoryTransaction(async (tx) => {
+      const supplier = await tx.supplier.findFirst({
+        where: { id: data.supplierId, organizationId: orgId, status: 'ACTIVE' },
       });
-      if (!po) throw AppError.notFound('Purchase order not found');
+      if (!supplier) throw AppError.notFound('Supplier not found');
 
-      for (const received of items) {
-        const poItem = (po.items as any[]).find((i: any) => i.id === received.itemId);
-        if (!poItem) throw AppError.notFound(`Purchase order item ${received.itemId} not found`);
-        if (poItem.receivedQty + received.receivedQty > poItem.quantity) {
-          throw AppError.badRequest(`Received quantity exceeds ordered quantity for item ${poItem.id}`);
+      const items = [];
+      for (const input of data.items) {
+        const product = await tx.product.findFirst({
+          where: { id: input.productId, organizationId: orgId, isActive: true },
+        });
+        if (!product) throw AppError.notFound('Product not found');
+        if (input.variantId) {
+          const variant = await tx.productVariant.findFirst({
+            where: { id: input.variantId, productId: input.productId, isActive: true },
+          });
+          if (!variant) throw AppError.notFound('Product variant not found');
         }
 
-        await tx.purchaseOrderItem.update({
-          where: { id: received.itemId },
-          data: { receivedQty: { increment: received.receivedQty } },
-        });
-
-        const stockLevel = await tx.stockLevel.upsert({
-          where: {
-            warehouseId_productId_variantId_binId: {
-              warehouseId,
-              productId: poItem.productId,
-              variantId: poItem.variantId || '',
-              binId: '',
-            },
-          },
-          update: { quantity: { increment: received.receivedQty }, available: { increment: received.receivedQty } },
-          create: {
-            organizationId: orgId, warehouseId, productId: poItem.productId,
-            variantId: poItem.variantId || '', quantity: received.receivedQty, available: received.receivedQty,
-          },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            organizationId: orgId, type: 'IN', productId: poItem.productId,
-            variantId: poItem.variantId || null, stockLevelId: stockLevel.id, warehouseId,
-            quantity: received.receivedQty, beforeQty: stockLevel.quantity - received.receivedQty,
-            afterQty: stockLevel.quantity, referenceType: 'PURCHASE_ORDER', referenceId: id,
-            reference: po.poNumber, createdById: userId,
-          },
+        const quantity = new Prisma.Decimal(input.quantity);
+        const unitPrice = new Prisma.Decimal(input.unitPrice);
+        items.push({
+          productId: input.productId,
+          variantId: input.variantId ?? null,
+          quantity,
+          unitPrice,
+          totalPrice: quantity.times(unitPrice),
         });
       }
 
-      const allReceived = po.items.every((item: any) => {
-        const updated = items.find(r => r.itemId === item.id);
-        return (item.receivedQty + (updated?.receivedQty || 0)) >= item.quantity;
-      });
-
-      const anyReceived = items.length > 0;
-      const newStatus = allReceived ? 'RECEIVED' as const : anyReceived ? 'PARTIALLY_RECEIVED' as const : po.status;
-
-      return tx.purchaseOrder.update({
-        where: { id },
-        data: { status: newStatus, ...(newStatus === 'RECEIVED' ? { receivedDate: new Date() } : {}) },
+      const subtotal = items.reduce(
+        (sum, item) => sum.plus(item.totalPrice),
+        new Prisma.Decimal(0),
+      );
+      const taxAmount = subtotal.times(new Prisma.Decimal(data.taxRate ?? 0));
+      const poNumber = await DocumentSequenceService.next(tx, orgId, 'PURCHASE_ORDER');
+      const order = await tx.purchaseOrder.create({
+        data: {
+          organizationId: orgId,
+          poNumber,
+          supplierId: data.supplierId,
+          expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
+          notes: data.notes,
+          subtotal,
+          taxAmount,
+          totalAmount: subtotal.plus(taxAmount),
+          createdById: userId,
+          items: { create: items },
+        },
         include: poInclude,
       });
+      await tx.auditLog.create({
+        data: {
+          organizationId: orgId,
+          userId,
+          action: 'CREATE',
+          entityType: 'PurchaseOrder',
+          entityId: order.id,
+          newValues: JSON.stringify({ poNumber, status: 'DRAFT' }),
+        },
+      });
+      return order;
     });
-    return result;
+  },
+
+  async updateStatus(orgId: string, userId: string, id: string, status: PurchaseOrderStatus) {
+    if (status === 'PARTIALLY_RECEIVED' || status === 'RECEIVED') {
+      throw AppError.badRequest('Receiving status is derived from posted goods receipts');
+    }
+
+    return withInventoryTransaction(async (tx) => {
+      const order = await tx.purchaseOrder.findFirst({ where: { id, organizationId: orgId } });
+      if (!order) throw AppError.notFound('Purchase order not found');
+      if (order.status === status) return order;
+
+      const validTransitions: Partial<Record<PurchaseOrderStatus, PurchaseOrderStatus[]>> = {
+        DRAFT: ['PENDING_APPROVAL', 'CANCELLED'],
+        PENDING_APPROVAL: ['APPROVED', 'CANCELLED'],
+        APPROVED: ['SENT', 'CANCELLED'],
+        SENT: ['CANCELLED'],
+      };
+      if (!validTransitions[order.status]?.includes(status)) {
+        throw AppError.badRequest(`Cannot transition from ${order.status} to ${status}`);
+      }
+
+      const updated = await tx.purchaseOrder.update({ where: { id }, data: { status }, include: poInclude });
+      await tx.auditLog.create({
+        data: {
+          organizationId: orgId,
+          userId,
+          action: 'STATUS_CHANGE',
+          entityType: 'PurchaseOrder',
+          entityId: id,
+          oldValues: JSON.stringify({ status: order.status }),
+          newValues: JSON.stringify({ status }),
+        },
+      });
+      return updated;
+    });
+  },
+
+  async receive(orgId: string, userId: string, id: string, data: GoodsReceiptInput) {
+    return withInventoryTransaction(async (tx) => {
+      const duplicate = await tx.goodsReceipt.findUnique({
+        where: {
+          organizationId_idempotencyKey: {
+            organizationId: orgId,
+            idempotencyKey: data.idempotencyKey,
+          },
+        },
+        include: { lines: true, purchaseOrder: true },
+      });
+      if (duplicate) return duplicate;
+
+      const order = await tx.purchaseOrder.findFirst({
+        where: { id, organizationId: orgId },
+        include: { items: true },
+      });
+      if (!order) throw AppError.notFound('Purchase order not found');
+      if (order.status !== 'SENT' && order.status !== 'PARTIALLY_RECEIVED') {
+        throw AppError.badRequest(`Cannot receive a purchase order in ${order.status} status`);
+      }
+
+      const warehouse = await tx.warehouse.findFirst({
+        where: { id: data.warehouseId, organizationId: orgId, isActive: true },
+      });
+      if (!warehouse) throw AppError.notFound('Warehouse not found');
+      if (data.binId) {
+        const bin = await tx.warehouseBin.findFirst({
+          where: {
+            id: data.binId,
+            zone: { warehouseId: data.warehouseId, warehouse: { organizationId: orgId } },
+          },
+        });
+        if (!bin) throw AppError.notFound('Warehouse bin not found');
+      }
+
+      const receiptNumber = await DocumentSequenceService.next(tx, orgId, 'GOODS_RECEIPT');
+      const receipt = await tx.goodsReceipt.create({
+        data: {
+          organizationId: orgId,
+          receiptNumber,
+          purchaseOrderId: id,
+          warehouseId: data.warehouseId,
+          binId: data.binId ?? null,
+          supplierDeliveryReference: data.supplierDeliveryReference,
+          idempotencyKey: data.idempotencyKey,
+          receivedById: userId,
+        },
+      });
+
+      const seenItemIds = new Set<string>();
+      for (const input of data.items) {
+        if (seenItemIds.has(input.itemId)) {
+          throw AppError.badRequest('Each purchase order item may appear only once per receipt');
+        }
+        seenItemIds.add(input.itemId);
+        const orderItem = order.items.find((item) => item.id === input.itemId);
+        if (!orderItem) throw AppError.notFound(`Purchase order item ${input.itemId} not found`);
+
+        const receivedQty = new Prisma.Decimal(input.receivedQty);
+        const rejectedQty = new Prisma.Decimal(input.rejectedQty ?? 0);
+        const acceptedQty = input.acceptedQty === undefined
+          ? receivedQty.minus(rejectedQty)
+          : new Prisma.Decimal(input.acceptedQty);
+        if (!receivedQty.isPositive() || acceptedQty.isNegative() || rejectedQty.isNegative()) {
+          throw AppError.badRequest('Receipt quantities are invalid');
+        }
+        if (!acceptedQty.plus(rejectedQty).equals(receivedQty)) {
+          throw AppError.badRequest('acceptedQty plus rejectedQty must equal receivedQty');
+        }
+        if (new Prisma.Decimal(orderItem.receivedQty).plus(acceptedQty).greaterThan(orderItem.quantity)) {
+          throw AppError.badRequest(`Accepted quantity exceeds ordered quantity for item ${orderItem.id}`);
+        }
+
+        await validateInventoryIdentity(tx, {
+          organizationId: orgId,
+          productId: orderItem.productId,
+          variantId: orderItem.variantId,
+          warehouseId: data.warehouseId,
+          binId: data.binId,
+        });
+        const receiptLine = await tx.goodsReceiptLine.create({
+          data: {
+            goodsReceiptId: receipt.id,
+            purchaseOrderItemId: orderItem.id,
+            productId: orderItem.productId,
+            variantId: orderItem.variantId,
+            expectedQty: new Prisma.Decimal(orderItem.quantity).minus(orderItem.receivedQty),
+            receivedQty,
+            acceptedQty,
+            rejectedQty,
+          },
+        });
+
+        if (acceptedQty.isPositive()) {
+          const balance = await InventoryPostingService.ensureBalance(tx, {
+            organizationId: orgId,
+            warehouseId: data.warehouseId,
+            binId: data.binId,
+            productId: orderItem.productId,
+            variantId: orderItem.variantId,
+          });
+          await InventoryPostingService.receive(tx, {
+            organizationId: orgId,
+            userId,
+            balanceId: balance.id,
+            quantity: acceptedQty,
+            unitPrice: orderItem.unitPrice,
+            sourceDocumentType: 'GOODS_RECEIPT',
+            sourceDocumentId: receipt.id,
+            reference: receiptNumber,
+            idempotencyKey: `GR:${receipt.id}:LINE:${receiptLine.id}`,
+            correlationId: `GR:${receipt.id}`,
+          });
+          await tx.purchaseOrderItem.update({
+            where: { id: orderItem.id },
+            data: { receivedQty: { increment: acceptedQty } },
+          });
+        }
+      }
+
+      const currentItems = await tx.purchaseOrderItem.findMany({ where: { purchaseOrderId: id } });
+      const allReceived = currentItems.every((item) => item.receivedQty.greaterThanOrEqualTo(item.quantity));
+      const anyReceived = currentItems.some((item) => item.receivedQty.isPositive());
+      const status: PurchaseOrderStatus = allReceived
+        ? 'RECEIVED'
+        : anyReceived
+          ? 'PARTIALLY_RECEIVED'
+          : order.status;
+
+      await tx.purchaseOrder.update({
+        where: { id },
+        data: {
+          status,
+          receivedDate: allReceived ? new Date() : null,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          organizationId: orgId,
+          userId,
+          action: 'GOODS_RECEIPT_POSTED',
+          entityType: 'GoodsReceipt',
+          entityId: receipt.id,
+          newValues: JSON.stringify({ receiptNumber, purchaseOrderId: id, status }),
+        },
+      });
+
+      return tx.goodsReceipt.findUniqueOrThrow({
+        where: { id: receipt.id },
+        include: { lines: true, purchaseOrder: { include: poInclude } },
+      });
+    });
   },
 };

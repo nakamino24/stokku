@@ -7,8 +7,9 @@ import { Card, Button, Spinner, Badge } from '@stokku/ui';
 const fetcher = (url: string) => api.get<any>(url);
 
 const statusColors: Record<string, string> = {
-  DRAFT: 'default', CONFIRMED: 'info', PICKING: 'warning',
-  SHIPPING: 'warning', DELIVERED: 'success', CANCELLED: 'danger', RETURNED: 'default',
+  DRAFT: 'default', CONFIRMED: 'info', ALLOCATED: 'info', PICKING: 'warning',
+  PICKED: 'warning', PACKED: 'warning', SHIPPED: 'info', DELIVERED: 'success',
+  CLOSED: 'success', CANCELLED: 'danger', RETURNED: 'default',
 };
 
 export default function SalesOrdersPage() {
@@ -31,7 +32,7 @@ export default function SalesOrdersPage() {
       </div>
 
       <div className="mb-4 flex gap-2 flex-wrap">
-        {['', 'DRAFT', 'CONFIRMED', 'PICKING', 'SHIPPING', 'DELIVERED', 'CANCELLED'].map(s => (
+        {['', 'DRAFT', 'CONFIRMED', 'ALLOCATED', 'PICKING', 'PICKED', 'PACKED', 'SHIPPED', 'DELIVERED', 'CLOSED', 'CANCELLED'].map(s => (
           <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
               statusFilter === s ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
