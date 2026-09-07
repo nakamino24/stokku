@@ -14,7 +14,7 @@ export const adjustStockSchema = z.object({
   variantId: z.string().uuid().optional().nullable(),
   warehouseId: z.string().uuid(),
   binId: z.string().uuid().optional().nullable(),
-  quantity: decimalString.refine((value) => !/^\-?0(?:\.0+)?$/.test(value), 'Quantity must be non-zero'),
+  quantity: decimalString.refine((value) => !/^-?0(?:\.0+)?$/.test(value), 'Quantity must be non-zero'),
   reasonCode: z.enum([
     'DAMAGE',
     'SHRINKAGE',
