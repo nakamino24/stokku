@@ -64,7 +64,11 @@ const { prisma } = jest.requireMock('@stokku/database');
 
 function mockTransaction<T>(fn: (tx: any) => T): Promise<T> {
   const tx = {
-    user: { create: prisma.user.create, findUnique: prisma.user.findUnique },
+    user: {
+      create: prisma.user.create,
+      findUnique: prisma.user.findUnique,
+      update: prisma.user.update,
+    },
     organization: { create: prisma.organization.create, update: prisma.organization.update },
     auditLog: { create: prisma.auditLog.create },
     role: { create: prisma.role.create },

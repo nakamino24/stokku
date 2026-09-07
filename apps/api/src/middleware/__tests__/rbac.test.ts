@@ -1,12 +1,14 @@
 import { Request, Response } from 'express';
 import { requirePermission } from '../rbac';
 
-const mockPrisma = {
-  organizationMember: { findUnique: jest.fn() },
-  role: { findFirst: jest.fn() },
-};
+jest.mock('@stokku/database', () => ({
+  prisma: {
+    organizationMember: { findUnique: jest.fn() },
+    role: { findFirst: jest.fn() },
+  },
+}));
 
-jest.mock('@stokku/database', () => ({ prisma: mockPrisma }));
+const { prisma: mockPrisma } = jest.requireMock('@stokku/database');
 
 function request(role = 'VIEWER'): Request {
   return {

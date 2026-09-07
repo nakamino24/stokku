@@ -36,7 +36,6 @@ CMD ["node", "apps/api/dist/server.js"]
 FROM base AS web
 WORKDIR /app
 COPY --from=builder /app/apps/web/.next ./apps/web/.next
-COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/apps/web/package.json ./apps/web/
 COPY --from=builder /app/apps/web/next.config.mjs ./apps/web/
 COPY --from=builder /app/packages ./packages

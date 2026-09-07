@@ -37,6 +37,7 @@ jest.mock('../../../config', () => ({
     port: 3001,
     nodeEnv: 'test',
     auth: { refreshSessionTtlSeconds: 604800, refreshReuseGraceSeconds: 2, passwordResetTtlMinutes: 30 },
+    rateLimit: { api: 100, auth: 20, passwordReset: 5 },
     appUrl: 'http://localhost:3000',
   },
 }));
@@ -61,7 +62,7 @@ describe('POST /auth/register', () => {
     (prisma.$transaction as jest.Mock).mockImplementation((fn: (tx: any) => any) => {
       const tx = {
         organization: { create: prisma.organization.create, update: prisma.organization.update },
-        user: { create: prisma.user.create, findUnique: prisma.user.findUnique },
+        user: { create: prisma.user.create, findUnique: prisma.user.findUnique, update: prisma.user.update },
         auditLog: { create: prisma.auditLog.create },
         role: { create: prisma.role.create },
         organizationMember: { create: prisma.organizationMember.create },
