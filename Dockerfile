@@ -1,4 +1,7 @@
-FROM node:18-alpine AS base
+FROM node:22-bookworm-slim AS base
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@8.6.0 --activate
 WORKDIR /app
 
@@ -6,7 +9,9 @@ FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
-COPY packages/*/package.json packages/
+COPY packages/database/package.json packages/database/
+COPY packages/database/prisma packages/database/prisma/
+COPY packages/ui/package.json packages/ui/
 RUN pnpm install --frozen-lockfile
 
 FROM base AS builder
@@ -31,7 +36,6 @@ CMD ["node", "apps/api/dist/server.js"]
 FROM base AS web
 WORKDIR /app
 COPY --from=builder /app/apps/web/.next ./apps/web/.next
-COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/apps/web/package.json ./apps/web/
 COPY --from=builder /app/apps/web/next.config.mjs ./apps/web/
 COPY --from=builder /app/packages ./packages

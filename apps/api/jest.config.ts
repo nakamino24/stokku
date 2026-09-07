@@ -9,6 +9,9 @@ const config: Config = {
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
+  moduleNameMapper: {
+    '^@stokku/database$': '<rootDir>/../../packages/database/src/index.ts',
+  },
   clearMocks: true,
   collectCoverageFrom: ['src/**/*.ts', '!src/server.ts', '!src/**/index.ts'],
 };

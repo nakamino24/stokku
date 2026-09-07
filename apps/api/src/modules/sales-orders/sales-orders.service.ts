@@ -1,122 +1,228 @@
-import { prisma, Prisma, SalesOrderStatus } from '@stokku/database';
+import { Prisma, SalesOrderStatus, prisma } from '@stokku/database';
+import { DocumentSequenceService } from '../inventory/document-sequence.service';
+import { InventoryAllocationService } from '../inventory/inventory-allocation.service';
+import { DecimalInput, withInventoryTransaction } from '../inventory/inventory-posting.service';
 import { AppError } from '../../utils/errors';
 import { parsePagination, paginatedResult } from '../../utils/pagination';
 
+interface SalesOrderInput {
+  customerId: string;
+  notes?: string;
+  taxRate?: DecimalInput;
+  items: Array<{
+    productId: string;
+    variantId?: string | null;
+    quantity: DecimalInput;
+    unitPrice: DecimalInput;
+  }>;
+}
+
 const soInclude = {
   customer: true,
-  items: { include: { product: { select: { name: true, sku: true, unit: true } }, variant: { select: { name: true, sku: true } } } },
+  items: {
+    include: {
+      product: { select: { name: true, sku: true, unit: true } },
+      variant: { select: { name: true, sku: true } },
+      allocations: {
+        include: {
+          stockLevel: {
+            include: {
+              warehouse: { select: { id: true, name: true, code: true } },
+              bin: { select: { id: true, code: true } },
+            },
+          },
+        },
+      },
+    },
+  },
   createdBy: { select: { name: true } },
 } satisfies Prisma.SalesOrderInclude;
 
 export const SalesOrderService = {
-  async list(orgId: string, query: Record<string, any>) {
+  async list(orgId: string, query: Record<string, unknown>) {
     const pagination = parsePagination(query);
     const where: Prisma.SalesOrderWhereInput = { organizationId: orgId };
-    if (query.status) where.status = query.status;
-    if (query.customerId) where.customerId = query.customerId;
+    if (typeof query.status === 'string') where.status = query.status as SalesOrderStatus;
+    if (typeof query.customerId === 'string') where.customerId = query.customerId;
 
     const [data, total] = await Promise.all([
-      prisma.salesOrder.findMany({ where, include: soInclude, skip: (pagination.page - 1) * pagination.limit, take: pagination.limit, orderBy: { createdAt: 'desc' } }),
+      prisma.salesOrder.findMany({
+        where,
+        include: soInclude,
+        skip: (pagination.page - 1) * pagination.limit,
+        take: pagination.limit,
+        orderBy: { createdAt: 'desc' },
+      }),
       prisma.salesOrder.count({ where }),
     ]);
     return paginatedResult(data, total, pagination);
   },
 
   async getById(orgId: string, id: string) {
-    const so = await prisma.salesOrder.findFirst({ where: { id, organizationId: orgId }, include: soInclude });
-    if (!so) throw AppError.notFound('Sales order not found');
-    return so;
+    const order = await prisma.salesOrder.findFirst({
+      where: { id, organizationId: orgId },
+      include: soInclude,
+    });
+    if (!order) throw AppError.notFound('Sales order not found');
+    return order;
   },
 
-  async create(orgId: string, userId: string, data: any) {
-    return (prisma.$transaction as any)(async (tx: any) => {
-      const count = await tx.salesOrder.count({ where: { organizationId: orgId } });
-      const soNumber = `SO-${String(count + 1).padStart(5, '0')}-${Date.now().toString(36).toUpperCase()}`;
+  async create(orgId: string, userId: string, data: SalesOrderInput) {
+    return withInventoryTransaction(async (tx) => {
+      const customer = await tx.customer.findFirst({
+        where: { id: data.customerId, organizationId: orgId, isActive: true },
+      });
+      if (!customer) throw AppError.notFound('Customer not found');
 
-      for (const item of data.items) {
-        const stock = await tx.stockLevel.findFirst({
-          where: { organizationId: orgId, productId: item.productId, variantId: item.variantId || '' },
+      const items = [];
+      for (const input of data.items) {
+        const product = await tx.product.findFirst({
+          where: { id: input.productId, organizationId: orgId, isActive: true },
         });
-        if (!stock || stock.available < item.quantity) {
-          const product = await tx.product.findUnique({ where: { id: item.productId }, select: { name: true } });
-          throw AppError.badRequest(`Insufficient stock for ${product?.name || 'product'}`);
+        if (!product) throw AppError.notFound('Product not found');
+        if (input.variantId) {
+          const variant = await tx.productVariant.findFirst({
+            where: { id: input.variantId, productId: input.productId, isActive: true },
+          });
+          if (!variant) throw AppError.notFound('Product variant not found');
         }
+
+        const quantity = new Prisma.Decimal(input.quantity);
+        const unitPrice = new Prisma.Decimal(input.unitPrice);
+        items.push({
+          productId: input.productId,
+          variantId: input.variantId ?? null,
+          quantity,
+          unitPrice,
+          totalPrice: quantity.times(unitPrice),
+        });
       }
 
-      const items = data.items.map((item: any) => ({
-        productId: item.productId, variantId: item.variantId || null,
-        quantity: item.quantity, unitPrice: item.unitPrice,
-        totalPrice: item.quantity * item.unitPrice,
-      }));
+      const subtotal = items.reduce(
+        (sum, item) => sum.plus(item.totalPrice),
+        new Prisma.Decimal(0),
+      );
+      const taxRate = new Prisma.Decimal(data.taxRate ?? 0);
+      const taxAmount = subtotal.times(taxRate);
+      const totalAmount = subtotal.plus(taxAmount);
+      const soNumber = await DocumentSequenceService.next(tx, orgId, 'SALES_ORDER');
 
-      const subtotal = items.reduce((sum: number, i: any) => sum + Number(i.totalPrice), 0);
-      const taxAmount = subtotal * (data.taxRate || 0);
-      const totalAmount = subtotal + taxAmount;
-
-      const so = await tx.salesOrder.create({
+      const order = await tx.salesOrder.create({
         data: {
-          organizationId: orgId, soNumber, customerId: data.customerId,
-          notes: data.notes, subtotal, taxAmount, totalAmount, createdById: userId,
+          organizationId: orgId,
+          soNumber,
+          customerId: data.customerId,
+          notes: data.notes,
+          subtotal,
+          taxAmount,
+          totalAmount,
+          createdById: userId,
           items: { create: items },
         },
         include: soInclude,
       });
 
-      for (const item of data.items) {
-        await tx.stockLevel.updateMany({
-          where: { organizationId: orgId, productId: item.productId, variantId: item.variantId || '' },
-          data: { reserved: { increment: item.quantity }, available: { decrement: item.quantity } },
-        });
-      }
-
-      await tx.auditLog.create({ data: { organizationId: orgId, userId, action: 'CREATE', entityType: 'SalesOrder', entityId: so.id } });
-      return so;
+      await tx.auditLog.create({
+        data: {
+          organizationId: orgId,
+          userId,
+          action: 'CREATE',
+          entityType: 'SalesOrder',
+          entityId: order.id,
+          newValues: JSON.stringify({ status: 'DRAFT', soNumber }),
+        },
+      });
+      return order;
     });
   },
 
-  async updateStatus(orgId: string, userId: string, id: string, status: SalesOrderStatus) {
-    return (prisma.$transaction as any)(async (tx: any) => {
-      const so = await tx.salesOrder.findFirst({ where: { id, organizationId: orgId } });
-      if (!so) throw AppError.notFound('Sales order not found');
+  async updateStatus(orgId: string, userId: string, id: string, requestedStatus: SalesOrderStatus) {
+    return withInventoryTransaction(async (tx) => {
+      const order = await tx.salesOrder.findFirst({
+        where: { id, organizationId: orgId },
+        include: soInclude,
+      });
+      if (!order) throw AppError.notFound('Sales order not found');
 
-      const validTransitions: Record<string, string[]> = {
+      if (order.status === requestedStatus) return order;
+      if (requestedStatus === 'CONFIRMED' && order.status === 'ALLOCATED') return order;
+
+      const validTransitions: Record<SalesOrderStatus, SalesOrderStatus[]> = {
         DRAFT: ['CONFIRMED', 'CANCELLED'],
-        CONFIRMED: ['PICKING', 'CANCELLED'],
-        PICKING: ['SHIPPING', 'CANCELLED'],
-        SHIPPING: ['DELIVERED', 'CANCELLED'],
-        DELIVERED: ['RETURNED'],
+        CONFIRMED: ['ALLOCATED', 'CANCELLED'],
+        ALLOCATED: ['PICKING', 'CANCELLED'],
+        PICKING: ['PICKED', 'CANCELLED'],
+        PICKED: ['PACKED', 'CANCELLED'],
+        PACKED: ['SHIPPED', 'CANCELLED'],
+        SHIPPED: ['DELIVERED'],
+        DELIVERED: ['CLOSED', 'RETURNED'],
+        CLOSED: [],
+        CANCELLED: [],
+        RETURNED: [],
       };
 
-      if (!validTransitions[so.status]?.includes(status)) {
-        throw AppError.badRequest(`Cannot transition from ${so.status} to ${status}`);
+      if (!validTransitions[order.status].includes(requestedStatus)) {
+        throw AppError.badRequest(`Cannot transition from ${order.status} to ${requestedStatus}`);
       }
 
-      if (status === 'DELIVERED') {
-        const items = await tx.salesOrderItem.findMany({ where: { salesOrderId: id } });
-        for (const item of items) {
-          const stock = await tx.stockLevel.findFirst({
-            where: { organizationId: orgId, productId: item.productId, variantId: item.variantId || '' },
-          });
-          if (stock) {
-            await tx.stockLevel.update({
-              where: { id: stock.id },
-              data: { quantity: { decrement: item.quantity }, reserved: { decrement: item.quantity } },
-            });
-            await tx.stockMovement.create({
-              data: {
-                organizationId: orgId, type: 'OUT', productId: item.productId,
-                variantId: item.variantId || null, warehouseId: stock.warehouseId,
-                stockLevelId: stock.id, quantity: -item.quantity,
-                beforeQty: stock.quantity, afterQty: stock.quantity - item.quantity,
-                referenceType: 'SALES_ORDER', referenceId: id, reference: so.soNumber, createdById: userId,
-              },
-            });
-          }
-        }
+      let nextStatus = requestedStatus;
+      const now = new Date();
+      const timestamps: Prisma.SalesOrderUpdateInput = {};
+
+      if (requestedStatus === 'CONFIRMED' || requestedStatus === 'ALLOCATED') {
+        await InventoryAllocationService.allocateSalesOrder(tx, {
+          organizationId: orgId,
+          userId,
+          salesOrderId: id,
+          reference: order.soNumber,
+        });
+        nextStatus = 'ALLOCATED';
+        timestamps.confirmedAt = order.confirmedAt ?? now;
+        timestamps.allocatedAt = now;
+      } else if (requestedStatus === 'CANCELLED') {
+        await InventoryAllocationService.releaseSalesOrder(tx, {
+          organizationId: orgId,
+          userId,
+          salesOrderId: id,
+          reference: order.soNumber,
+        });
+        timestamps.cancelledAt = now;
+      } else if (requestedStatus === 'SHIPPED') {
+        await InventoryAllocationService.shipSalesOrder(tx, {
+          organizationId: orgId,
+          userId,
+          salesOrderId: id,
+          reference: order.soNumber,
+        });
+        timestamps.shippedAt = now;
+      } else if (requestedStatus === 'PICKED') {
+        timestamps.pickedAt = now;
+      } else if (requestedStatus === 'PACKED') {
+        timestamps.packedAt = now;
+      } else if (requestedStatus === 'DELIVERED') {
+        // Delivery is a business milestone. Physical inventory was already
+        // relieved exactly once when the shipment was posted.
+        timestamps.deliveredAt = now;
+      } else if (requestedStatus === 'CLOSED') {
+        timestamps.closedAt = now;
       }
 
-      const updated = await tx.salesOrder.update({ where: { id }, data: { status }, include: soInclude });
-      await tx.auditLog.create({ data: { organizationId: orgId, userId, action: 'UPDATE', entityType: 'SalesOrder', entityId: id } });
+      const updated = await tx.salesOrder.update({
+        where: { id },
+        data: { status: nextStatus, ...timestamps },
+        include: soInclude,
+      });
+      await tx.auditLog.create({
+        data: {
+          organizationId: orgId,
+          userId,
+          action: 'STATUS_CHANGE',
+          entityType: 'SalesOrder',
+          entityId: id,
+          oldValues: JSON.stringify({ status: order.status }),
+          newValues: JSON.stringify({ status: nextStatus }),
+        },
+      });
       return updated;
     });
   },

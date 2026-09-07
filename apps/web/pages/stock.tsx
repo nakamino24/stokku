@@ -59,9 +59,9 @@ export default function StockPage() {
       ) : data?.data?.length > 0 ? (
         <div className="space-y-2">
           {data.data.map((item: any) => (
-            <Card key={item.id} className={`p-4 flex items-center justify-between ${item.quantity <= (item.reorderPoint || -1) ? 'bg-amber-50 border-amber-200' : ''}`}>
+            <Card key={item.id} className={`p-4 flex items-center justify-between ${Number(item.available) <= Number(item.reorderPoint ?? -1) ? 'bg-amber-50 border-amber-200' : ''}`}>
               <div className="flex items-center gap-3 flex-1">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${item.quantity <= (item.reorderPoint || -1) ? 'bg-amber-100 text-amber-600' : 'bg-indigo-50 text-indigo-500'}`}>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${Number(item.available) <= Number(item.reorderPoint ?? -1) ? 'bg-amber-100 text-amber-600' : 'bg-indigo-50 text-indigo-500'}`}>
                   <FiLayers size={20} />
                 </div>
                 <div>
@@ -71,10 +71,10 @@ export default function StockPage() {
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <div className={`text-lg font-bold ${item.available <= 0 ? 'text-red-600' : item.available <= (item.reorderPoint || 0) ? 'text-amber-600' : 'text-gray-900'}`}>
+                  <div className={`text-lg font-bold ${Number(item.available) <= 0 ? 'text-red-600' : Number(item.available) <= Number(item.reorderPoint ?? 0) ? 'text-amber-600' : 'text-gray-900'}`}>
                     {item.available}
                   </div>
-                  <div className="text-xs text-gray-400">{item.reserved > 0 ? `${item.reserved} reserved` : 'available'}</div>
+                  <div className="text-xs text-gray-400">{Number(item.allocated) > 0 ? `${item.allocated} allocated` : `${item.onHand} on hand`}</div>
                 </div>
                 {item.reorderPoint && (
                   <div className="text-xs text-gray-400 w-16 text-right">

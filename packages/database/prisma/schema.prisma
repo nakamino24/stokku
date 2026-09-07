@@ -36,19 +36,68 @@ enum PurchaseOrderStatus {
 enum SalesOrderStatus {
   DRAFT
   CONFIRMED
+  ALLOCATED
   PICKING
-  SHIPPING
+  PICKED
+  PACKED
+  SHIPPED
   DELIVERED
+  CLOSED
   CANCELLED
   RETURNED
 }
 
 enum StockMovementType {
-  IN
-  OUT
+  RECEIPT
+  ISSUE
   ADJUSTMENT
-  TRANSFER
+  TRANSFER_OUT
+  TRANSFER_IN
+  ALLOCATION
+  DEALLOCATION
+  PICK
+  PUTAWAY
+  SHIPMENT
   RETURN
+  REVERSAL
+}
+
+enum InventoryStatus {
+  AVAILABLE
+  HOLD
+  QUARANTINE
+  DAMAGED
+}
+
+enum InventoryAllocationStatus {
+  ACTIVE
+  RELEASED
+  FULFILLED
+}
+
+enum GoodsReceiptStatus {
+  POSTED
+  REVERSED
+}
+
+enum AdjustmentReasonCode {
+  DAMAGE
+  SHRINKAGE
+  COUNT_VARIANCE
+  EXPIRED
+  FOUND_STOCK
+  DATA_CORRECTION
+  QUALITY_REJECTION
+  RETURN_ADJUSTMENT
+  OTHER
+}
+
+enum DocumentType {
+  PURCHASE_ORDER
+  SALES_ORDER
+  GOODS_RECEIPT
+  STOCK_TRANSFER
+  STOCK_ADJUSTMENT
 }
 
 enum ProductStatus {
@@ -84,6 +133,9 @@ model Organization {
   warehouses     Warehouse[]
   stockLevels    StockLevel[]
   stockMovements StockMovement[]
+  allocations    InventoryAllocation[]
+  goodsReceipts  GoodsReceipt[]
+  documentSequences DocumentSequence[]
   purchaseOrders PurchaseOrder[]
   salesOrders    SalesOrder[]
   users           User[]
@@ -116,6 +168,8 @@ model User {
   ownedOrganization Organization? @relation("organizationOwner")
 
   createdStockMovements StockMovement[] @relation("createdBy")
+  createdInventoryAllocations InventoryAllocation[] @relation("allocationCreatedBy")
+  receivedGoodsReceipts GoodsReceipt[] @relation("goodsReceiptReceivedBy")
   createdPurchaseOrders PurchaseOrder[] @relation("poCreatedBy")
   createdSalesOrders    SalesOrder[]    @relation("soCreatedBy")
   auditLogs             AuditLog[]
@@ -134,10 +188,13 @@ model OrganizationMember {
   userId         String
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   role           OrganizationRole @default(VIEWER)
+  roleId         String?
+  assignedRole   Role?            @relation(fields: [roleId], references: [id])
   joinedAt       DateTime         @default(now())
 
   @@unique([organizationId, userId])
   @@index([userId])
+  @@index([roleId])
 }
 
 model Role {
@@ -152,6 +209,7 @@ model Role {
   updatedAt      DateTime     @updatedAt
 
   permissions RolePermission[]
+  members     OrganizationMember[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -201,14 +259,14 @@ model Product {
   sku            String?
   barcode        String?
   description    String?
-  unitPrice      Decimal       @default(0)
-  costPrice      Decimal       @default(0)
-  taxRate        Decimal       @default(0)
+  unitPrice      Decimal       @default(0) @db.Decimal(18, 6)
+  costPrice      Decimal       @default(0) @db.Decimal(18, 6)
+  taxRate        Decimal       @default(0) @db.Decimal(9, 6)
   unit           String        @default("pcs")
-  minStock       Int           @default(0)
-  maxStock       Int?
+  minStock       Decimal       @default(0) @db.Decimal(18, 6)
+  maxStock       Decimal?      @db.Decimal(18, 6)
   imageUrl       String?
-  weight         Decimal?
+  weight         Decimal?      @db.Decimal(18, 6)
   weightUnit     String        @default("kg")
   isActive       Boolean       @default(true)
   status         ProductStatus @default(ACTIVE)
@@ -221,6 +279,7 @@ model Product {
   movements   StockMovement[]
   poItems     PurchaseOrderItem[]
   soItems     SalesOrderItem[]
+  receiptLines GoodsReceiptLine[]
 
   @@unique([organizationId, sku])
   @@index([organizationId])
@@ -236,8 +295,8 @@ model ProductVariant {
   sku        String?
   barcode    String?
   options    String  @default("{}")
-  unitPrice  Decimal @default(0)
-  costPrice  Decimal @default(0)
+  unitPrice  Decimal @default(0) @db.Decimal(18, 6)
+  costPrice  Decimal @default(0) @db.Decimal(18, 6)
   imageUrl   String?
   sortOrder  Int     @default(0)
   isActive   Boolean @default(true)
@@ -248,6 +307,7 @@ model ProductVariant {
   movements   StockMovement[]
   poItems     PurchaseOrderItem[]
   soItems     SalesOrderItem[]
+  receiptLines GoodsReceiptLine[]
 
   @@unique([sku, productId])
   @@index([productId])
@@ -262,8 +322,8 @@ model ProductSupplier {
   supplier     Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   supplierSku  String?
   leadTimeDays Int?
-  moq          Int?
-  unitCost     Decimal?
+  moq          Decimal? @db.Decimal(18, 6)
+  unitCost     Decimal? @db.Decimal(18, 6)
   isPreferred  Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -331,7 +391,7 @@ model Warehouse {
   address        String?
   city           String?
   country        String?
-  capacity       Int?
+  capacity       Decimal?      @db.Decimal(18, 6)
   isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -341,6 +401,7 @@ model Warehouse {
   movements     StockMovement[]
   fromMovements StockMovement[] @relation("fromWarehouse")
   toMovements   StockMovement[] @relation("toWarehouse")
+  goodsReceipts GoodsReceipt[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -367,12 +428,13 @@ model WarehouseBin {
   zoneId      String
   zone        WarehouseZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
   code        String
-  maxCapacity Int?
+  maxCapacity Decimal?      @db.Decimal(18, 6)
   description String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   stockLevels StockLevel[]
+  goodsReceipts GoodsReceipt[]
 
   @@unique([zoneId, code])
   @@index([zoneId])
@@ -390,17 +452,25 @@ model StockLevel {
   product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   variantId      String?
   variant        ProductVariant? @relation(fields: [variantId], references: [id])
-  quantity       Int             @default(0)
-  reserved       Int             @default(0)
-  available      Int             @default(0)
-  reorderPoint   Int?
-  reorderQty     Int?
+  inventoryStatus InventoryStatus @default(AVAILABLE)
+  lotNumber      String?
+  serialNumber   String?
+  onHand         Decimal         @default(0) @db.Decimal(18, 6)
+  allocated      Decimal         @default(0) @db.Decimal(18, 6)
+  hold           Decimal         @default(0) @db.Decimal(18, 6)
+  available      Decimal         @default(0) @db.Decimal(18, 6)
+  reorderPoint   Decimal?        @db.Decimal(18, 6)
+  reorderQty     Decimal?        @db.Decimal(18, 6)
+  version        Int             @default(0)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
   movements StockMovement[]
+  allocations InventoryAllocation[]
 
-  @@unique([warehouseId, productId, variantId, binId])
+  // Nullable identity parts are enforced with a PostgreSQL NULLS NOT DISTINCT
+  // unique index in the migration. Prisma cannot express that index yet.
+  @@index([organizationId, warehouseId, productId, variantId, binId, inventoryStatus])
   @@index([productId])
   @@index([variantId])
   @@index([warehouseId])
@@ -425,16 +495,31 @@ model StockMovement {
   toWarehouse     Warehouse?        @relation("toWarehouse", fields: [toWarehouseId], references: [id])
   stockLevelId    String?
   stockLevel      StockLevel?       @relation(fields: [stockLevelId], references: [id])
-  quantity        Int
-  beforeQty       Int               @default(0)
-  afterQty        Int               @default(0)
-  unitPrice       Decimal?
-  totalPrice      Decimal?
-  referenceType   String?
-  referenceId     String?
+  quantity        Decimal           @db.Decimal(18, 6)
+  onHandDelta     Decimal           @default(0) @db.Decimal(18, 6)
+  allocatedDelta  Decimal           @default(0) @db.Decimal(18, 6)
+  holdDelta       Decimal           @default(0) @db.Decimal(18, 6)
+  beforeOnHand    Decimal           @default(0) @db.Decimal(18, 6)
+  afterOnHand     Decimal           @default(0) @db.Decimal(18, 6)
+  beforeAllocated Decimal           @default(0) @db.Decimal(18, 6)
+  afterAllocated  Decimal           @default(0) @db.Decimal(18, 6)
+  beforeHold      Decimal           @default(0) @db.Decimal(18, 6)
+  afterHold       Decimal           @default(0) @db.Decimal(18, 6)
+  beforeAvailable Decimal           @default(0) @db.Decimal(18, 6)
+  afterAvailable  Decimal           @default(0) @db.Decimal(18, 6)
+  unitPrice       Decimal?          @db.Decimal(18, 6)
+  totalPrice      Decimal?          @db.Decimal(24, 6)
+  sourceDocumentType String?
+  sourceDocumentId String?
   reference       String?
+  idempotencyKey  String
+  correlationId   String?
+  reasonCode      AdjustmentReasonCode?
   reason          String?
   note            String?
+  reversalOfId    String?
+  reversalOf      StockMovement?    @relation("movementReversal", fields: [reversalOfId], references: [id])
+  reversals       StockMovement[]   @relation("movementReversal")
   createdById     String
   createdBy       User              @relation("createdBy", fields: [createdById], references: [id])
   createdAt       DateTime          @default(now())
@@ -445,6 +530,9 @@ model StockMovement {
   @@index([organizationId])
   @@index([createdAt])
   @@index([type])
+  @@index([sourceDocumentType, sourceDocumentId])
+  @@index([correlationId])
+  @@unique([organizationId, idempotencyKey])
 }
 
 model PurchaseOrder {
@@ -458,9 +546,9 @@ model PurchaseOrder {
   orderDate      DateTime            @default(now())
   expectedDate   DateTime?
   receivedDate   DateTime?
-  subtotal       Decimal             @default(0)
-  taxAmount      Decimal             @default(0)
-  totalAmount    Decimal             @default(0)
+  subtotal       Decimal             @default(0) @db.Decimal(24, 6)
+  taxAmount      Decimal             @default(0) @db.Decimal(24, 6)
+  totalAmount    Decimal             @default(0) @db.Decimal(24, 6)
   notes          String?
   createdById    String
   createdBy      User                @relation("poCreatedBy", fields: [createdById], references: [id])
@@ -468,6 +556,7 @@ model PurchaseOrder {
   updatedAt      DateTime            @updatedAt
 
   items PurchaseOrderItem[]
+  goodsReceipts GoodsReceipt[]
 
   @@unique([organizationId, poNumber])
   @@index([organizationId])
@@ -483,14 +572,16 @@ model PurchaseOrderItem {
   product         Product         @relation(fields: [productId], references: [id])
   variantId       String?
   variant         ProductVariant? @relation(fields: [variantId], references: [id])
-  quantity        Int
-  receivedQty     Int             @default(0)
-  unitPrice       Decimal         @default(0)
-  totalPrice      Decimal         @default(0)
+  quantity        Decimal         @db.Decimal(18, 6)
+  receivedQty     Decimal         @default(0) @db.Decimal(18, 6)
+  unitPrice       Decimal         @default(0) @db.Decimal(18, 6)
+  totalPrice      Decimal         @default(0) @db.Decimal(24, 6)
   createdAt       DateTime        @default(now())
 
   @@index([purchaseOrderId])
   @@index([productId])
+
+  receiptLines GoodsReceiptLine[]
 }
 
 model SalesOrder {
@@ -502,16 +593,25 @@ model SalesOrder {
   customer       Customer         @relation(fields: [customerId], references: [id])
   status         SalesOrderStatus @default(DRAFT)
   orderDate      DateTime         @default(now())
-  subtotal       Decimal          @default(0)
-  taxAmount      Decimal          @default(0)
-  totalAmount    Decimal          @default(0)
+  subtotal       Decimal          @default(0) @db.Decimal(24, 6)
+  taxAmount      Decimal          @default(0) @db.Decimal(24, 6)
+  totalAmount    Decimal          @default(0) @db.Decimal(24, 6)
   notes          String?
+  confirmedAt    DateTime?
+  allocatedAt    DateTime?
+  pickedAt       DateTime?
+  packedAt       DateTime?
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  closedAt       DateTime?
+  cancelledAt    DateTime?
   createdById    String
   createdBy      User             @relation("soCreatedBy", fields: [createdById], references: [id])
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
   items SalesOrderItem[]
+  allocations InventoryAllocation[]
 
   @@unique([organizationId, soNumber])
   @@index([organizationId])
@@ -527,13 +627,106 @@ model SalesOrderItem {
   product      Product         @relation(fields: [productId], references: [id])
   variantId    String?
   variant      ProductVariant? @relation(fields: [variantId], references: [id])
-  quantity     Int
-  unitPrice    Decimal         @default(0)
-  totalPrice   Decimal         @default(0)
+  quantity     Decimal         @db.Decimal(18, 6)
+  unitPrice    Decimal         @default(0) @db.Decimal(18, 6)
+  totalPrice   Decimal         @default(0) @db.Decimal(24, 6)
   createdAt    DateTime        @default(now())
 
   @@index([salesOrderId])
   @@index([productId])
+
+  allocations InventoryAllocation[]
+}
+
+model InventoryAllocation {
+  id               String                    @id @default(uuid())
+  organizationId   String
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salesOrderId     String
+  salesOrder       SalesOrder                @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  salesOrderItemId String
+  salesOrderItem   SalesOrderItem            @relation(fields: [salesOrderItemId], references: [id], onDelete: Cascade)
+  stockLevelId     String
+  stockLevel       StockLevel                @relation(fields: [stockLevelId], references: [id])
+  quantity         Decimal                   @db.Decimal(18, 6)
+  status           InventoryAllocationStatus @default(ACTIVE)
+  idempotencyKey   String
+  createdById      String
+  createdBy        User                      @relation("allocationCreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime                  @default(now())
+  releasedAt       DateTime?
+  fulfilledAt      DateTime?
+
+  @@unique([organizationId, idempotencyKey])
+  @@unique([salesOrderItemId, stockLevelId])
+  @@index([organizationId, status])
+  @@index([salesOrderId])
+  @@index([stockLevelId])
+}
+
+model GoodsReceipt {
+  id                        String             @id @default(uuid())
+  organizationId            String
+  organization              Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  receiptNumber             String
+  purchaseOrderId           String
+  purchaseOrder             PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  warehouseId               String
+  warehouse                 Warehouse          @relation(fields: [warehouseId], references: [id])
+  binId                     String?
+  bin                       WarehouseBin?       @relation(fields: [binId], references: [id])
+  status                    GoodsReceiptStatus @default(POSTED)
+  supplierDeliveryReference String?
+  idempotencyKey            String
+  receivedById              String
+  receivedBy                User               @relation("goodsReceiptReceivedBy", fields: [receivedById], references: [id])
+  receivedAt                DateTime           @default(now())
+  postedAt                  DateTime           @default(now())
+  reversedAt                DateTime?
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+
+  lines GoodsReceiptLine[]
+
+  @@unique([organizationId, receiptNumber])
+  @@unique([organizationId, idempotencyKey])
+  @@index([purchaseOrderId])
+  @@index([warehouseId])
+}
+
+model GoodsReceiptLine {
+  id                  String            @id @default(uuid())
+  goodsReceiptId      String
+  goodsReceipt        GoodsReceipt      @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  purchaseOrderItemId String
+  purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
+  productId           String
+  product             Product           @relation(fields: [productId], references: [id])
+  variantId           String?
+  variant             ProductVariant?   @relation(fields: [variantId], references: [id])
+  expectedQty         Decimal           @db.Decimal(18, 6)
+  receivedQty         Decimal           @db.Decimal(18, 6)
+  acceptedQty         Decimal           @db.Decimal(18, 6)
+  rejectedQty         Decimal           @default(0) @db.Decimal(18, 6)
+  createdAt           DateTime          @default(now())
+
+  @@unique([goodsReceiptId, purchaseOrderItemId])
+  @@index([purchaseOrderItemId])
+  @@index([productId])
+}
+
+model DocumentSequence {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documentType   DocumentType
+  year           Int
+  lastNumber     Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, documentType, year])
+  @@index([organizationId])
 }
 
 model AuditLog {

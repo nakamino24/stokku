@@ -1,6 +1,5 @@
 import request from 'supertest';
-import { createTestApp, mockUser } from '../../../__tests__/helpers';
-import { AppError } from '../../../utils/errors';
+import { createTestApp } from '../../../__tests__/helpers';
 
 jest.mock('@stokku/database', () => ({
   prisma: {
@@ -14,6 +13,9 @@ jest.mock('@stokku/database', () => ({
       update: jest.fn(),
     },
     auditLog: { create: jest.fn() },
+    role: { create: jest.fn() },
+    organizationMember: { create: jest.fn() },
+    refreshSession: { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
     $transaction: jest.fn(),
   },
 }));
@@ -34,6 +36,9 @@ jest.mock('../../../config', () => ({
     cors: { origins: ['http://localhost:3000'] },
     port: 3001,
     nodeEnv: 'test',
+    auth: { refreshSessionTtlSeconds: 604800, refreshReuseGraceSeconds: 2, passwordResetTtlMinutes: 30 },
+    rateLimit: { api: 100, auth: 20, passwordReset: 5 },
+    appUrl: 'http://localhost:3000',
   },
 }));
 
@@ -57,11 +62,19 @@ describe('POST /auth/register', () => {
     (prisma.$transaction as jest.Mock).mockImplementation((fn: (tx: any) => any) => {
       const tx = {
         organization: { create: prisma.organization.create, update: prisma.organization.update },
-        user: { create: prisma.user.create, findUnique: prisma.user.findUnique },
+        user: { create: prisma.user.create, findUnique: prisma.user.findUnique, update: prisma.user.update },
         auditLog: { create: prisma.auditLog.create },
+        role: { create: prisma.role.create },
+        organizationMember: { create: prisma.organizationMember.create },
+        refreshSession: { create: prisma.refreshSession.create, updateMany: prisma.refreshSession.updateMany },
       };
       return Promise.resolve(fn(tx));
     });
+    (prisma.role.create as jest.Mock).mockImplementation(({ data }: { data: { slug: string } }) => ({
+      id: `role-${data.slug}`,
+      slug: data.slug,
+    }));
+    (prisma.refreshSession.create as jest.Mock).mockResolvedValue({ id: 'session-1' });
 
     app = createTestApp((app) => {
       const routes = jest.requireActual('../auth.routes').default;
@@ -112,6 +125,7 @@ describe('POST /auth/login', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma.refreshSession.create as jest.Mock).mockResolvedValue({ id: 'session-1' });
     app = createTestApp((app) => {
       const routes = jest.requireActual('../auth.routes').default;
       app.use('/api/v1/auth', routes);

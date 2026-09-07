@@ -1,22 +1,110 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { OrganizationRole, Prisma, PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
+const SYSTEM_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
+  OWNER: ['*'],
+  ADMIN: ['*'],
+  INVENTORY_MANAGER: [
+    'product.read', 'product.create', 'product.update', 'product.archive',
+    'inventory.read', 'inventory.adjust.request', 'inventory.adjust.approve',
+    'inventory.transfer.create', 'inventory.transfer.dispatch', 'inventory.transfer.receive',
+    'inventory.reconcile', 'po.read', 'po.create', 'po.submit', 'po.approve', 'po.send', 'po.cancel',
+    'receipt.create', 'receipt.post', 'receipt.reverse', 'so.read', 'so.create', 'so.confirm', 'so.cancel',
+    'pick.execute', 'pack.execute', 'shipment.post',
+    'cycle_count.create', 'cycle_count.execute', 'cycle_count.approve',
+  ],
+  WAREHOUSE_STAFF: [
+    'product.read', 'inventory.read', 'inventory.adjust.request', 'inventory.transfer.create',
+    'inventory.transfer.dispatch', 'inventory.transfer.receive', 'po.read', 'receipt.create',
+    'receipt.post', 'so.read', 'pick.execute', 'pack.execute',
+  ],
+  CASHIER: ['product.read', 'inventory.read', 'so.read', 'so.create'],
+  VIEWER: ['product.read', 'inventory.read', 'po.read', 'so.read'],
+};
+
+async function seedOpeningBalance(input: {
+  organizationId: string;
+  warehouseId: string;
+  binId?: string;
+  productId: string;
+  variantId?: string;
+  quantity: string;
+  userId: string;
+  sequence: number;
+  reorderPoint?: string;
+  reorderQty?: string;
+}) {
+  const existing = await prisma.stockLevel.findFirst({
+    where: {
+      organizationId: input.organizationId,
+      warehouseId: input.warehouseId,
+      binId: input.binId ?? null,
+      productId: input.productId,
+      variantId: input.variantId ?? null,
+      inventoryStatus: 'AVAILABLE',
+      lotNumber: null,
+      serialNumber: null,
+    },
+  });
+  if (existing) return existing;
+
+  const quantity = new Prisma.Decimal(input.quantity);
+  const balance = await prisma.stockLevel.create({
+    data: {
+      organizationId: input.organizationId,
+      warehouseId: input.warehouseId,
+      binId: input.binId ?? null,
+      productId: input.productId,
+      variantId: input.variantId ?? null,
+      onHand: quantity,
+      allocated: 0,
+      hold: 0,
+      available: quantity,
+      reorderPoint: input.reorderPoint,
+      reorderQty: input.reorderQty,
+      version: 1,
+    },
+  });
+  await prisma.stockMovement.create({
+    data: {
+      organizationId: input.organizationId,
+      type: 'RECEIPT',
+      productId: input.productId,
+      variantId: input.variantId ?? null,
+      warehouseId: input.warehouseId,
+      stockLevelId: balance.id,
+      quantity,
+      onHandDelta: quantity,
+      beforeOnHand: 0,
+      afterOnHand: quantity,
+      beforeAllocated: 0,
+      afterAllocated: 0,
+      beforeHold: 0,
+      afterHold: 0,
+      beforeAvailable: 0,
+      afterAvailable: quantity,
+      sourceDocumentType: 'SEED',
+      sourceDocumentId: input.organizationId,
+      reference: 'SEED-OPENING',
+      idempotencyKey: `SEED:OPENING:${input.sequence}`,
+      reason: 'Demo opening inventory',
+      createdById: input.userId,
+    },
+  });
+  return balance;
+}
+
 async function main() {
   console.log('Seeding database...');
+  const passwordHash = await bcrypt.hash('password123', 12);
 
-  const passwordHash = await bcrypt.hash('password123', 10);
-
-  // Create organization with raw SQL to bypass Prisma's circular relation requirement
-  const orgId = randomUUID();
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "Organization" (id, name, slug, currency, timezone, "updatedAt") VALUES ($1, $2, $3, $4, $5, NOW()) ON CONFLICT (slug) DO NOTHING`,
-    orgId, 'Demo Company', 'demo-company', 'USD', 'UTC'
-  );
-  const org = await prisma.organization.findUniqueOrThrow({ where: { slug: 'demo-company' } });
-
+  const existingOrganization = await prisma.organization.findUnique({ where: { slug: 'demo-company' } });
+  const organization = existingOrganization ?? await prisma.organization.create({
+    data: { id: randomUUID(), name: 'Demo Company', slug: 'demo-company', currency: 'USD', timezone: 'UTC' },
+  });
   const user = await prisma.user.upsert({
     where: { email: 'demo@stokku.app' },
     update: {},
@@ -26,134 +114,145 @@ async function main() {
       name: 'Demo User',
       emailVerified: true,
       role: 'OWNER',
-      organizationId: org.id,
+      organizationId: organization.id,
+    },
+  });
+  await prisma.organization.update({ where: { id: organization.id }, data: { ownerId: user.id } });
+
+  let ownerRoleId: string | undefined;
+  for (const [role, permissions] of Object.entries(SYSTEM_ROLE_PERMISSIONS) as [OrganizationRole, readonly string[]][]) {
+    const systemRole = await prisma.role.upsert({
+      where: { organizationId_slug: { organizationId: organization.id, slug: role.toLowerCase() } },
+      update: { name: role, isSystem: true },
+      create: {
+        organizationId: organization.id,
+        name: role.split('_').join(' '),
+        slug: role.toLowerCase(),
+        isSystem: true,
+      },
+    });
+    if (role === 'OWNER') ownerRoleId = systemRole.id;
+    for (const permission of permissions) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permission: { roleId: systemRole.id, permission } },
+        update: {},
+        create: { roleId: systemRole.id, permission },
+      });
+    }
+  }
+  await prisma.organizationMember.upsert({
+    where: { organizationId_userId: { organizationId: organization.id, userId: user.id } },
+    update: { role: 'OWNER', roleId: ownerRoleId },
+    create: { organizationId: organization.id, userId: user.id, role: 'OWNER', roleId: ownerRoleId },
+  });
+
+  const rawMaterials = await prisma.category.upsert({
+    where: { organizationId_slug: { organizationId: organization.id, slug: 'raw-materials' } },
+    update: {},
+    create: { organizationId: organization.id, name: 'Raw Materials', slug: 'raw-materials', color: '#8B5CF6' },
+  });
+  const chemicals = await prisma.category.upsert({
+    where: { organizationId_slug: { organizationId: organization.id, slug: 'chemicals' } },
+    update: {},
+    create: { organizationId: organization.id, parentId: rawMaterials.id, name: 'Chemicals', slug: 'chemicals', color: '#A78BFA' },
+  });
+  const metals = await prisma.category.upsert({
+    where: { organizationId_slug: { organizationId: organization.id, slug: 'metals' } },
+    update: {},
+    create: { organizationId: organization.id, parentId: rawMaterials.id, name: 'Metals', slug: 'metals', color: '#C4B5FD' },
+  });
+  const finishedGoods = await prisma.category.upsert({
+    where: { organizationId_slug: { organizationId: organization.id, slug: 'finished-goods' } },
+    update: {},
+    create: { organizationId: organization.id, name: 'Finished Goods', slug: 'finished-goods', color: '#10B981' },
+  });
+
+  const solvent = await prisma.product.upsert({
+    where: { organizationId_sku: { organizationId: organization.id, sku: 'SOL-200' } },
+    update: {},
+    create: {
+      organizationId: organization.id,
+      categoryId: chemicals.id,
+      name: 'Industrial Solvent X-200',
+      sku: 'SOL-200',
+      unit: 'l',
+      unitPrice: '45',
+      costPrice: '28',
+    },
+  });
+  const aluminum = await prisma.product.upsert({
+    where: { organizationId_sku: { organizationId: organization.id, sku: 'AL-6061' } },
+    update: {},
+    create: {
+      organizationId: organization.id,
+      categoryId: metals.id,
+      name: 'Aluminum Sheet 6061',
+      sku: 'AL-6061',
+      unit: 'sheet',
+      unitPrice: '85',
+      costPrice: '55',
+    },
+  });
+  const bearing = await prisma.product.upsert({
+    where: { organizationId_sku: { organizationId: organization.id, sku: 'BRG-KIT' } },
+    update: {},
+    create: {
+      organizationId: organization.id,
+      categoryId: finishedGoods.id,
+      name: 'Precision Bearing Kit',
+      sku: 'BRG-KIT',
+      unit: 'set',
+      unitPrice: '220',
+      costPrice: '145',
     },
   });
 
-  await prisma.organization.update({
-    where: { id: org.id },
-    data: { ownerId: user.id },
+  const solvent5L = await prisma.productVariant.upsert({
+    where: { sku_productId: { sku: 'SOL-200-5L', productId: solvent.id } },
+    update: {},
+    create: { productId: solvent.id, name: '5L Canister', sku: 'SOL-200-5L', unitPrice: '45', costPrice: '28', options: '{"volume":"5L"}' },
+  });
+  const solvent20L = await prisma.productVariant.upsert({
+    where: { sku_productId: { sku: 'SOL-200-20L', productId: solvent.id } },
+    update: {},
+    create: { productId: solvent.id, name: '20L Drum', sku: 'SOL-200-20L', unitPrice: '150', costPrice: '95', options: '{"volume":"20L"}' },
+  });
+  const aluminum2mm = await prisma.productVariant.upsert({
+    where: { sku_productId: { sku: 'AL-6061-2MM', productId: aluminum.id } },
+    update: {},
+    create: { productId: aluminum.id, name: '2mm Thickness', sku: 'AL-6061-2MM', unitPrice: '120', costPrice: '78', options: '{"thickness":"2mm"}' },
+  });
+  const bearingKit = await prisma.productVariant.upsert({
+    where: { sku_productId: { sku: 'BRG-6200-KIT', productId: bearing.id } },
+    update: {},
+    create: { productId: bearing.id, name: '6200 Series (10pcs)', sku: 'BRG-6200-KIT', unitPrice: '220', costPrice: '145' },
   });
 
-  console.log('  ✓ Organization: Demo Company');
-  console.log('  ✓ User: demo@stokku.app / password123');
-
-  // Categories
-  const catRaw = await prisma.category.create({ data: { organizationId: org.id, name: 'Raw Materials', slug: 'raw-materials', color: '#8B5CF6', sortOrder: 1 } });
-  const catChem = await prisma.category.create({ data: { organizationId: org.id, name: 'Chemicals', slug: 'chemicals', parentId: catRaw.id, color: '#A78BFA', sortOrder: 1 } });
-  const catMetal = await prisma.category.create({ data: { organizationId: org.id, name: 'Metals', slug: 'metals', parentId: catRaw.id, color: '#C4B5FD', sortOrder: 2 } });
-  const catFinished = await prisma.category.create({ data: { organizationId: org.id, name: 'Finished Goods', slug: 'finished-goods', color: '#10B981', sortOrder: 2 } });
-  const catEquip = await prisma.category.create({ data: { organizationId: org.id, name: 'Equipment', slug: 'equipment', color: '#F59E0B', sortOrder: 3 } });
-  console.log('  ✓ Categories: 5 created');
-
-  // Products with variants
-  const p1 = await prisma.product.create({ data: { organizationId: org.id, categoryId: catChem.id, name: 'Industrial Solvent X-200', sku: 'SOL-200', description: 'High-purity solvent for industrial cleaning applications', unit: 'l', unitPrice: 45, costPrice: 28 } });
-  const v1a = await prisma.productVariant.create({ data: { productId: p1.id, name: '5L Canister', sku: 'SOL-200-5L', unitPrice: 45, costPrice: 28, options: '{"volume":"5L"}' } });
-  const v1b = await prisma.productVariant.create({ data: { productId: p1.id, name: '20L Drum', sku: 'SOL-200-20L', unitPrice: 150, costPrice: 95, options: '{"volume":"20L"}' } });
-
-  const p2 = await prisma.product.create({ data: { organizationId: org.id, categoryId: catMetal.id, name: 'Aluminum Sheet 6061', sku: 'AL-6061', description: 'T6 tempered aluminum sheet', unit: 'sheet', unitPrice: 85, costPrice: 55 } });
-  const v2b = await prisma.productVariant.create({ data: { productId: p2.id, name: '2mm Thickness', sku: 'AL-6061-2MM', unitPrice: 120, costPrice: 78, options: '{"thickness":"2mm"}' } });
-
-  const p3 = await prisma.product.create({ data: { organizationId: org.id, categoryId: catFinished.id, name: 'Precision Bearing Kit', sku: 'BRG-KIT', description: 'Industrial grade ball bearing kit', unit: 'set', unitPrice: 220, costPrice: 145 } });
-  const v3a = await prisma.productVariant.create({ data: { productId: p3.id, name: '6200 Series (10pcs)', sku: 'BRG-6200-KIT', unitPrice: 220, costPrice: 145, options: '{"series":"6200","qty":"10"}' } });
-
-  const p4 = await prisma.product.create({ data: { organizationId: org.id, categoryId: catEquip.id, name: 'Hydraulic Pump P-100', sku: 'HP-P100', description: 'High-pressure hydraulic pump', unit: 'unit', unitPrice: 1850, costPrice: 1200 } });
-  const v4a = await prisma.productVariant.create({ data: { productId: p4.id, name: '230V Standard', sku: 'HP-P100-230V', unitPrice: 1850, costPrice: 1200, options: '{"voltage":"230V"}' } });
-
-  await prisma.product.create({ data: { organizationId: org.id, categoryId: catChem.id, name: 'Polymer Resin R-500', sku: 'RES-R500', description: 'Thermoplastic polymer resin', unit: 'kg', unitPrice: 175, costPrice: 110 } });
-  // p5 variant (no stock levels referencing it so no variable needed)
-
-  console.log('  ✓ Products: 5 with 9 variants');
-
-  // Suppliers
-  const s1 = await prisma.supplier.create({ data: { organizationId: org.id, name: 'ChemCorp International', contactPerson: 'John Smith', email: 'orders@chemcorp.io', phone: '+1-555-0100', address: '100 Industrial Blvd, Houston, TX', paymentTerms: 'Net 30', currency: 'USD' } });
-  const s2 = await prisma.supplier.create({ data: { organizationId: org.id, name: 'MetalWorks Supply', contactPerson: 'Jane Doe', email: 'sales@metalworks.net', phone: '+1-555-0101', address: '200 Foundry St, Pittsburgh, PA', paymentTerms: 'Net 45', currency: 'USD' } });
-  const s3 = await prisma.supplier.create({ data: { organizationId: org.id, name: 'Precision Parts Ltd', contactPerson: 'Mike Brown', email: 'info@precisionparts.uk', phone: '+44-20-5555-0102', address: '50 Engineering Way, Manchester, UK', paymentTerms: 'Net 30', currency: 'GBP' } });
-  console.log('  ✓ Suppliers: 3');
-
-  // Product-Supplier links
-  await prisma.productSupplier.createMany({
-    data: [
-      { productId: p1.id, supplierId: s1.id, supplierSku: 'CC-SOL-200', leadTimeDays: 14, unitCost: 26, moq: 10 },
-      { productId: p2.id, supplierId: s2.id, supplierSku: 'MW-AL-6061-2', leadTimeDays: 21, unitCost: 72, moq: 5, isPreferred: true },
-      { productId: p3.id, supplierId: s3.id, supplierSku: 'PP-BRG-6200', leadTimeDays: 28, unitCost: 140, moq: 25 },
-      { productId: p4.id, supplierId: s3.id, supplierSku: 'PP-HP-P100', leadTimeDays: 45, unitCost: 1150, moq: 2, isPreferred: true },
-      { productId: p1.id, supplierId: s2.id, supplierSku: 'MW-SOLV-200', leadTimeDays: 18, unitCost: 30, moq: 20 },
-    ],
+  const warehouse = await prisma.warehouse.upsert({
+    where: { organizationId_code: { organizationId: organization.id, code: 'WH-MAIN' } },
+    update: {},
+    create: { organizationId: organization.id, name: 'Main Warehouse', code: 'WH-MAIN', address: '500 Logistics Dr' },
   });
-  console.log('  ✓ Product-Supplier links: 5');
-
-  // Customers
-  await prisma.customer.create({ data: { organizationId: org.id, name: 'Acme Corp', email: 'orders@acme.com', phone: '+1-555-0200', address: '500 Main St, New York, NY' } });
-  await prisma.customer.create({ data: { organizationId: org.id, name: 'Global Industries', email: 'purchasing@globalind.com', phone: '+1-555-0201', address: '1000 Park Ave, Chicago, IL' } });
-  await prisma.customer.create({ data: { organizationId: org.id, name: 'TechStart Inc', email: 'info@techstart.io', phone: '+1-555-0202', address: '200 Innovation Dr, San Francisco, CA' } });
-  console.log('  ✓ Customers: 3');
-
-  // Warehouses
-  const wMain = await prisma.warehouse.create({ data: { organizationId: org.id, name: 'Main Warehouse', code: 'WH-MAIN', description: 'Primary storage and distribution', address: '500 Logistics Dr, Dallas, TX' } });
-  const wCold = await prisma.warehouse.create({ data: { organizationId: org.id, name: 'Cold Storage', code: 'WH-COLD', description: 'Temperature-controlled storage', address: '500 Logistics Dr, Dallas, TX (Bldg B)' } });
-  console.log('  ✓ Warehouses: 2');
-
-  // Warehouse zones
-  const z1 = await prisma.warehouseZone.create({ data: { warehouseId: wMain.id, name: 'Aisle A', code: 'A', description: 'Main aisle - high turnover' } });
-  const z2 = await prisma.warehouseZone.create({ data: { warehouseId: wMain.id, name: 'Aisle B', code: 'B', description: 'Secondary aisle - bulk storage' } });
-  await prisma.warehouseBin.createMany({
-    data: [
-      { zoneId: z1.id, code: 'A-01', maxCapacity: 100 }, { zoneId: z1.id, code: 'A-02', maxCapacity: 100 },
-      { zoneId: z2.id, code: 'B-01', maxCapacity: 50 }, { zoneId: z2.id, code: 'B-02', maxCapacity: 50 },
-    ],
+  const coldWarehouse = await prisma.warehouse.upsert({
+    where: { organizationId_code: { organizationId: organization.id, code: 'WH-COLD' } },
+    update: {},
+    create: { organizationId: organization.id, name: 'Cold Storage', code: 'WH-COLD', address: '500 Logistics Dr (Bldg B)' },
   });
-  console.log('  ✓ Warehouse zones & bins');
 
-  // Stock levels
-  const now = new Date();
+  await seedOpeningBalance({ organizationId: organization.id, warehouseId: warehouse.id, productId: solvent.id, variantId: solvent5L.id, quantity: '150', userId: user.id, sequence: 1, reorderPoint: '25', reorderQty: '50' });
+  await seedOpeningBalance({ organizationId: organization.id, warehouseId: warehouse.id, productId: solvent.id, variantId: solvent20L.id, quantity: '25', userId: user.id, sequence: 2, reorderPoint: '10', reorderQty: '20' });
+  await seedOpeningBalance({ organizationId: organization.id, warehouseId: warehouse.id, productId: aluminum.id, variantId: aluminum2mm.id, quantity: '15', userId: user.id, sequence: 3, reorderPoint: '20', reorderQty: '50' });
+  await seedOpeningBalance({ organizationId: organization.id, warehouseId: warehouse.id, productId: bearing.id, variantId: bearingKit.id, quantity: '105', userId: user.id, sequence: 4, reorderPoint: '30', reorderQty: '100' });
+  await seedOpeningBalance({ organizationId: organization.id, warehouseId: coldWarehouse.id, productId: solvent.id, variantId: solvent5L.id, quantity: '35.5', userId: user.id, sequence: 5, reorderPoint: '20', reorderQty: '30' });
 
-  const sl1 = await prisma.stockLevel.create({ data: { organizationId: org.id, warehouseId: wMain.id, productId: p1.id, variantId: v1a.id, quantity: 150, available: 150, reorderPoint: 25, reorderQty: 50 } });
-  const sl2 = await prisma.stockLevel.create({ data: { organizationId: org.id, warehouseId: wMain.id, productId: p1.id, variantId: v1b.id, quantity: 25, available: 25, reorderPoint: 10, reorderQty: 20 } });
-  const sl3 = await prisma.stockLevel.create({ data: { organizationId: org.id, warehouseId: wMain.id, productId: p2.id, variantId: v2b.id, quantity: 15, available: 15, reorderPoint: 20, reorderQty: 50 } });
-  const sl4 = await prisma.stockLevel.create({ data: { organizationId: org.id, warehouseId: wMain.id, productId: p3.id, variantId: v3a.id, quantity: 105, available: 105, reorderPoint: 30, reorderQty: 100 } });
-  const sl5 = await prisma.stockLevel.create({ data: { organizationId: org.id, warehouseId: wMain.id, productId: p4.id, variantId: v4a.id, quantity: 8, available: 8, reorderPoint: 3, reorderQty: 5 } });
-  const sl6 = await prisma.stockLevel.create({ data: { organizationId: org.id, warehouseId: wCold.id, productId: p1.id, variantId: v1a.id, quantity: 35, available: 35, reorderPoint: 20, reorderQty: 30 } });
-
-  // Stock movements
-  const movs: { organizationId: string; stockLevelId: string; productId: string; variantId: string; warehouseId: string; type: any; quantity: number; beforeQty: number; afterQty: number; reference: string; createdById: string; createdAt: Date }[] = [
-    { organizationId: org.id, stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'IN', quantity: 100, beforeQty: 0, afterQty: 100, reference: 'PO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
-    { organizationId: org.id, stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'OUT', quantity: -15, beforeQty: 100, afterQty: 85, reference: 'SO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 20) },
-    { organizationId: org.id, stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'OUT', quantity: -10, beforeQty: 85, afterQty: 75, reference: 'SO-00002', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 10) },
-    { organizationId: org.id, stockLevelId: sl1.id, productId: p1.id, variantId: v1a.id, warehouseId: wMain.id, type: 'IN', quantity: 75, beforeQty: 75, afterQty: 150, reference: 'PO-00002', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 5) },
-    { organizationId: org.id, stockLevelId: sl2.id, productId: p1.id, variantId: v1b.id, warehouseId: wMain.id, type: 'IN', quantity: 30, beforeQty: 0, afterQty: 30, reference: 'PO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
-    { organizationId: org.id, stockLevelId: sl2.id, productId: p1.id, variantId: v1b.id, warehouseId: wMain.id, type: 'OUT', quantity: -5, beforeQty: 30, afterQty: 25, reference: 'SO-00003', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 15) },
-    { organizationId: org.id, stockLevelId: sl3.id, productId: p2.id, variantId: v2b.id, warehouseId: wMain.id, type: 'IN', quantity: 50, beforeQty: 0, afterQty: 50, reference: 'PO-00003', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 60) },
-    { organizationId: org.id, stockLevelId: sl3.id, productId: p2.id, variantId: v2b.id, warehouseId: wMain.id, type: 'OUT', quantity: -20, beforeQty: 50, afterQty: 30, reference: 'SO-00004', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 25) },
-    { organizationId: org.id, stockLevelId: sl3.id, productId: p2.id, variantId: v2b.id, warehouseId: wMain.id, type: 'OUT', quantity: -15, beforeQty: 30, afterQty: 15, reference: 'SO-00005', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 3) },
-    { organizationId: org.id, stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'IN', quantity: 200, beforeQty: 0, afterQty: 200, reference: 'PO-00004', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 90) },
-    { organizationId: org.id, stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'OUT', quantity: -40, beforeQty: 200, afterQty: 160, reference: 'SO-00006', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 60) },
-    { organizationId: org.id, stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'OUT', quantity: -30, beforeQty: 160, afterQty: 130, reference: 'SO-00007', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
-    { organizationId: org.id, stockLevelId: sl4.id, productId: p3.id, variantId: v3a.id, warehouseId: wMain.id, type: 'OUT', quantity: -25, beforeQty: 130, afterQty: 105, reference: 'SO-00008', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 7) },
-    { organizationId: org.id, stockLevelId: sl5.id, productId: p4.id, variantId: v4a.id, warehouseId: wMain.id, type: 'IN', quantity: 10, beforeQty: 0, afterQty: 10, reference: 'PO-00005', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 120) },
-    { organizationId: org.id, stockLevelId: sl5.id, productId: p4.id, variantId: v4a.id, warehouseId: wMain.id, type: 'OUT', quantity: -2, beforeQty: 10, afterQty: 8, reference: 'SO-00009', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 90) },
-    { organizationId: org.id, stockLevelId: sl6.id, productId: p1.id, variantId: v1a.id, warehouseId: wCold.id, type: 'IN', quantity: 40, beforeQty: 0, afterQty: 40, reference: 'PO-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 30) },
-    { organizationId: org.id, stockLevelId: sl6.id, productId: p1.id, variantId: v1a.id, warehouseId: wCold.id, type: 'TRANSFER', quantity: -5, beforeQty: 40, afterQty: 35, reference: 'TR-00001', createdById: user.id, createdAt: new Date(now.getTime() - 86400000 * 12) },
-  ];
-
-  await prisma.stockMovement.createMany({ data: movs });
-  console.log('  ✓ Stock levels: 6 with 17 movements');
-
-  // System roles
-  await prisma.role.createMany({
-    data: [
-      { organizationId: org.id, name: 'Admin', slug: 'admin', description: 'Full access to all features', isSystem: true },
-      { organizationId: org.id, name: 'Inventory Manager', slug: 'inventory_manager', description: 'Manage products, stock, and purchases', isSystem: true },
-      { organizationId: org.id, name: 'Warehouse Staff', slug: 'warehouse_staff', description: 'View stock and record movements', isSystem: true },
-      { organizationId: org.id, name: 'Viewer', slug: 'viewer', description: 'Read-only access', isSystem: true },
-    ],
-  });
-  console.log('  ✓ System roles: 4');
-
-  console.log('\nSeed completed successfully!');
+  console.log('Seed completed successfully');
   console.log('Login: demo@stokku.app / password123');
 }
 
 main()
   .then(() => prisma.$disconnect())
-  .catch((e) => { console.error(e); prisma.$disconnect(); process.exit(1); });
+  .catch(async (error) => {
+    console.error(error);
+    await prisma.$disconnect();
+    process.exit(1);
+  });

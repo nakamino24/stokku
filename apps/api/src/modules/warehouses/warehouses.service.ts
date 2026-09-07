@@ -20,7 +20,7 @@ export const WarehouseService = {
         zones: { include: { bins: true } },
         stockLevels: {
           include: { product: { select: { name: true, sku: true } }, variant: { select: { name: true, sku: true } } },
-          orderBy: { quantity: 'desc' },
+          orderBy: { available: 'desc' },
           take: 100,
         },
       },

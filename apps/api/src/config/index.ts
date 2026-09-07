@@ -1,5 +1,7 @@
+import { config as loadEnvironment } from 'dotenv';
+
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-  require('dotenv').config();
+  loadEnvironment();
 }
 
 const isVercel = Boolean(process.env.VERCEL);

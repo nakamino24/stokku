@@ -1,4 +1,4 @@
-import { prisma } from '@stokku/database';
+import { OrganizationRole, prisma } from '@stokku/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { createHash, randomBytes, randomUUID } from 'crypto';
@@ -6,6 +6,7 @@ import { config } from '../../config';
 import { AppError } from '../../utils/errors';
 import { logger } from '../../utils/logger';
 import { passwordResetEmailSender } from './password-reset-email';
+import { SYSTEM_ROLE_PERMISSIONS } from '../roles/system-permissions';
 
 const db = prisma as any;
 const GENERIC_RESET_MESSAGE = 'If an account exists for this email, password reset instructions have been sent.';
@@ -82,6 +83,28 @@ export const AuthService = {
           emailVerified: true,
           role: 'OWNER',
           organizationId: org.id,
+        },
+      });
+      const roles = await Promise.all(
+        (Object.entries(SYSTEM_ROLE_PERMISSIONS) as [OrganizationRole, readonly string[]][]).map(
+          ([role, permissions]) => tx.role.create({
+            data: {
+              organizationId: org.id,
+              name: role.split('_').map((part) => part[0] + part.slice(1).toLowerCase()).join(' '),
+              slug: role.toLowerCase(),
+              isSystem: true,
+              permissions: { create: permissions.map((permission) => ({ permission })) },
+            },
+          }),
+        ),
+      );
+      const ownerRole = roles.find((role: { slug: string }) => role.slug === 'owner');
+      await tx.organizationMember.create({
+        data: {
+          organizationId: org.id,
+          userId: user.id,
+          role: 'OWNER',
+          roleId: ownerRole?.id,
         },
       });
       await tx.organization.update({ where: { id: org.id }, data: { ownerId: user.id } });

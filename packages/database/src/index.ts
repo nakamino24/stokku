@@ -16,7 +16,8 @@ function buildConnectionUrl(): string | undefined {
     const params = url.searchParams;
     if (!params.has('connection_limit')) params.set('connection_limit', '5');
     if (!params.has('pool_timeout')) params.set('pool_timeout', '20');
-    if (!params.has('sslmode')) params.set('sslmode', 'require');
+    const isLocalDatabase = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+    if (!isLocalDatabase && !params.has('sslmode')) params.set('sslmode', 'require');
     return url.toString();
   } catch {
     return base;
@@ -49,11 +50,25 @@ if (process.env.NODE_ENV !== 'production') {
   global.prisma = prisma;
 }
 
-export type {
+export {
   Prisma,
+  PrismaClient,
+  OrganizationRole,
+  SupplierStatus,
+  ProductStatus,
+  StockMovementType,
+  InventoryStatus,
+  InventoryAllocationStatus,
+  GoodsReceiptStatus,
+  AdjustmentReasonCode,
+  DocumentType,
+  PurchaseOrderStatus,
+  SalesOrderStatus,
+} from '@prisma/client';
+
+export type {
   Organization,
   OrganizationMember,
-  OrganizationRole,
   User,
   Role,
   RolePermission,
@@ -61,23 +76,20 @@ export type {
   Product,
   ProductVariant,
   ProductSupplier,
-  ProductStatus,
   Supplier,
-  SupplierStatus,
   Customer,
   Warehouse,
   WarehouseZone,
   WarehouseBin,
   StockLevel,
   StockMovement,
-  StockMovementType,
+  InventoryAllocation,
+  GoodsReceipt,
+  GoodsReceiptLine,
+  DocumentSequence,
   PurchaseOrder,
-  PurchaseOrderStatus,
   PurchaseOrderItem,
   SalesOrder,
-  SalesOrderStatus,
   SalesOrderItem,
   AuditLog,
 } from '@prisma/client';
-
-export { PrismaClient } from '@prisma/client';
