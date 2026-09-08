@@ -65,7 +65,6 @@ Render docs: https://render.com/docs/free
    | `NODE_ENV` | `production` | enables `Secure=true` + `SameSite=Lax` |
    | `DATABASE_URL` | Neon pooled URL | from step 1 |
    | `ACCESS_TOKEN_SECRET` | `openssl rand -base64 32` | >=16 chars |
-   | `REFRESH_TOKEN_SECRET` | `openssl rand -base64 32` | >=16 chars |
    | `CORS_ORIGINS` | `https://<your-vercel-app>.vercel.app` | exact production origin |
    | `APP_URL` | `https://<your-vercel-app>.vercel.app` | for emails / reset links |
    | `LOG_LEVEL` | `info` | optional |
@@ -94,7 +93,7 @@ Render docs: https://render.com/docs/free
    | `API_ORIGIN` | `https://<your-api>.onrender.com` (no trailing slash) | **Server/build only, NOT `NEXT_PUBLIC_*`** |
    | `APP_URL` | `https://<your-vercel-app>.vercel.app` | optional, for SEO |
    | `CORS_ORIGINS` is on **Render**, not Vercel |
-   Do NOT set `DATABASE_URL`, `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET` on Vercel.
+   Do NOT set `DATABASE_URL`,`DIRECT_URL`, or `ACCESS_TOKEN_SECRET` on Vercel.
 4. `apps/web/next.config.mjs` rewrites:
    - If `API_ORIGIN` set: `/api/:path* → ${API_ORIGIN}/api/:path*` and `/backend-health → ${API_ORIGIN}/health`
    - Else (local dev): `/api/:path* → http://localhost:3001/api/:path*`
@@ -129,7 +128,7 @@ Render docs: https://render.com/docs/free
 ## 5) Environment Variable Audit (Production)
 
 **Render API (secrets, server-only):**
-`DATABASE_URL`, `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`, `NODE_ENV=production`, `CORS_ORIGINS=https://<vercel>.vercel.app`, `APP_URL=https://<vercel>.vercel.app`, `PORT` (auto-injected), `LOG_LEVEL`, `RATE_LIMIT_MAX`
+`DATABASE_URL`, `ACCESS_TOKEN_SECRET`, `DIRECT_URL`, `NODE_ENV=production`, `CORS_ORIGINS=https://<vercel>.vercel.app`, `APP_URL=https://<vercel>.vercel.app`, `PORT` (auto-injected), `LOG_LEVEL`, `RATE_LIMIT_MAX`
 
 **Vercel Web (server/build-only, not public):**
 `API_ORIGIN=https://<render-api>.onrender.com`  

@@ -14,6 +14,7 @@ env:
   NODE_VERSION: 22
   PNPM_VERSION: 8.6.0
   DATABASE_URL: postgresql://stokku:stokku@localhost:5432/stokku-test
+  DIRECT_URL: postgresql://stokku:stokku@localhost:5432/stokku-test
 
 jobs:
   lint-typecheck:
