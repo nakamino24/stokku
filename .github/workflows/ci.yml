@@ -15,6 +15,8 @@ env:
   PNPM_VERSION: 8.6.0
   DATABASE_URL: postgresql://stokku:stokku@localhost:5432/stokku-test
   DIRECT_URL: postgresql://stokku:stokku@localhost:5432/stokku-test
+  API_ORIGIN: https://api.example.test
+  ACCESS_TOKEN_SECRET: ci-only-access-token-secret-at-least-32-characters
 
 jobs:
   lint-typecheck:

@@ -1,7 +1,9 @@
 // Browser uses same-origin /api/v1 proxied by Vercel to Render (API_ORIGIN server-only).
 // NEXT_PUBLIC_API_URL is retained only as an optional dev/test override.
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1` : '/api/v1';
-
+const API_BASE =
+  process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_API_URL
+    ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1`
+    : '/api/v1';
 let accessToken: string | null = null;
 
 export function setAccessToken(token: string | null) {

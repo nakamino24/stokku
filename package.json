@@ -11,7 +11,7 @@
   "scripts": {
     "postinstall": "pnpm --filter @stokku/database exec prisma generate",
     "build": "turbo run build",
-    "vercel-build": "turbo run build --filter=@stokku/database --filter=@stokku/api --filter=@stokku/web",
+    "vercel-build": "turbo run build --filter=@stokku/ui --filter=@stokku/web",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

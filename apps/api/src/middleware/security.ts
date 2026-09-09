@@ -1,3 +1,4 @@
+import { AppError } from '../utils/errors';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -17,7 +18,7 @@ export const corsMiddleware = cors({
       callback(null, true);
       return;
     }
-    callback(new Error('Origin not allowed by CORS'));
+    callback(AppError.forbidden('Origin not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
