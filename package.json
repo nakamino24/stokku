@@ -11,7 +11,7 @@
   "scripts": {
     "postinstall": "pnpm --filter @stokku/database exec prisma generate",
     "build": "turbo run build",
-    "vercel-build": "turbo run build --filter=@stokku/database --filter=@stokku/api --filter=@stokku/web",
+    "vercel-build": "turbo run build --filter=@stokku/ui --filter=@stokku/web",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
@@ -20,7 +20,9 @@
     "clean": "turbo run clean",
     "format": "prettier --write \"**/*.{js,ts,jsx,tsx,md,css,scss,html,json}\"",
     "deploy": "bash scripts/deploy.sh",
-    "deploy:staging": "bash scripts/deploy.sh staging"
+    "deploy:staging": "bash scripts/deploy.sh staging",
+    "migrate:deploy": "pnpm --filter @stokku/database exec prisma migrate deploy",
+    "render-build": "pnpm --filter @stokku/database build && pnpm --filter @stokku/api build && pnpm migrate:deploy"
   },
   "devDependencies": {
     "next": "13.4.0",

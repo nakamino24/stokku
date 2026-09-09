@@ -11,7 +11,7 @@ describe('PostgreSQL inventory schema contract', () => {
   );
 
   it('uses PostgreSQL and exact fractional quantity columns', () => {
-    expect(schema).toContain('provider = "postgresql"');
+    expect(schema).toMatch(/provider\s*=\s*"postgresql"/);
     expect(lock).toContain('provider = "postgresql"');
     expect(schema).toMatch(/onHand\s+Decimal\s+@default\(0\) @db\.Decimal\(18, 6\)/);
     expect(schema).toMatch(/available\s+Decimal\s+@default\(0\) @db\.Decimal\(18, 6\)/);

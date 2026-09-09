@@ -1,11 +1,20 @@
 import { config as loadEnvironment } from 'dotenv';
 
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+if (process.env.NODE_ENV !== 'production') {
   loadEnvironment();
 }
 
-const isVercel = Boolean(process.env.VERCEL);
-const appUrl = process.env.APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+const appUrl = process.env.APP_URL || 'http://localhost:3000';
+
+function parseCorsOrigins(): string[] {
+  return (
+    process.env.CORS_ORIGINS ||
+    'http://localhost:3000,http://localhost:3002'
+  )
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
 
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
@@ -24,18 +33,16 @@ export const config = {
   },
 
   cors: {
-    origins: isVercel
-      ? [process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : appUrl].filter(Boolean)
-      : (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002')
-          .split(',')
-          .map((origin) => origin.trim())
-          .filter(Boolean),
+    origins: parseCorsOrigins(),
   },
 
   rateLimit: {
     api: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
     auth: 20,
-    passwordReset: parseInt(process.env.PASSWORD_RESET_RATE_LIMIT_MAX || '5', 10),
+    passwordReset: parseInt(
+      process.env.PASSWORD_RESET_RATE_LIMIT_MAX || '5',
+      10,
+    ),
   },
 
   logLevel: process.env.LOG_LEVEL || 'info',

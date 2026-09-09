@@ -1,18 +1,20 @@
-name: CD
+name: Docker (optional)
+
+# Optional GHCR image publishing — NOT used for production deployment.
+# Production uses: Vercel builds Web, Render builds API directly from GitHub.
+# Run manually via Actions → Run workflow.
 
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Deployment environment'
+        description: 'Build environment'
         required: true
         default: 'production'
         type: choice
         options:
           - production
           - staging
-  push:
-    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
