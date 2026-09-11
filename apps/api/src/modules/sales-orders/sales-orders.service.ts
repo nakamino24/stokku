@@ -174,7 +174,7 @@ export const SalesOrderService = {
         throw AppError.badRequest(`Cannot transition from ${order.status} to ${requestedStatus}`);
       }
 
-      let nextStatus = requestedStatus;
+      const nextStatus = requestedStatus;
       const now = new Date();
       const timestamps: Prisma.SalesOrderUpdateInput = {};
 
