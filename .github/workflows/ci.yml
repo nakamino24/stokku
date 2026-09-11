@@ -176,6 +176,8 @@ jobs:
         run: pnpm migrate:deploy
       - name: Seed disposable database
         run: pnpm --filter @stokku/database exec prisma db seed
+      - name: Build database and API runtime packages
+        run: pnpm --filter @stokku/database build && pnpm --filter @stokku/api build
       - name: Install Playwright Chromium
         run: pnpm --filter @stokku/web exec playwright install --with-deps chromium
       - name: Run WMS acceptance specs
