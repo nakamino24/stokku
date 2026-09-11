@@ -181,7 +181,7 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --filter @stokku/web exec playwright install --with-deps chromium
       - name: Run WMS acceptance specs
-        run: pnpm --filter @stokku/web test:e2e -- e2e/purchase-order-workflow.spec.ts e2e/sales-order-workflow.spec.ts
+        run: pnpm --filter @stokku/web exec playwright test e2e/purchase-order-workflow.spec.ts e2e/sales-order-workflow.spec.ts
 
   build:
     name: Build
