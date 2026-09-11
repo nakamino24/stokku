@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 export interface ModalProps {
   open: boolean;
@@ -27,18 +27,43 @@ export const Modal: React.FC<ModalProps> = ({
   size = 'md',
   closeOnOverlay = true,
 }) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    previouslyFocused.current = document.activeElement as HTMLElement | null;
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) ?? []);
+    const first = focusable()[0];
+    first?.focus();
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab') {
+        const elements = focusable();
+        if (elements.length === 0) return;
+        const current = document.activeElement;
+        const index = elements.indexOf(current as HTMLElement);
+        if (e.shiftKey && (index <= 0 || current === dialogRef.current)) {
+          e.preventDefault();
+          elements[elements.length - 1]?.focus();
+        } else if (!e.shiftKey && index === elements.length - 1) {
+          e.preventDefault();
+          elements[0]?.focus();
+        }
+      }
     };
     document.addEventListener('keydown', handler);
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', handler);
       document.body.style.overflow = '';
+      previouslyFocused.current?.focus();
     };
   }, [open, onClose]);
+
+  const titleId = title ? `modal-title-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : undefined;
 
   if (!open) return null;
 
@@ -64,9 +89,11 @@ export const Modal: React.FC<ModalProps> = ({
         onClick={closeOnOverlay ? onClose : undefined}
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
+        aria-label={title ? undefined : 'Dialog'}
         style={{
           position: 'relative',
           width: '100%',
@@ -89,7 +116,7 @@ export const Modal: React.FC<ModalProps> = ({
               borderBottom: '1px solid #f3f4f6',
             }}
           >
-            <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#111827' }}>
+            <h2 id={titleId} style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#111827' }}>
               {title}
             </h2>
             <button

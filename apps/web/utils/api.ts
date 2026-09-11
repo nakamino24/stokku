@@ -24,10 +24,59 @@ export function clearTokens() {
 }
 
 let refreshPromise: Promise<boolean> | null = null;
+const REQUEST_TIMEOUT_MS = 15_000;
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const abort = () => controller.abort();
+  init.signal?.addEventListener('abort', abort, { once: true });
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+    init.signal?.removeEventListener('abort', abort);
+  }
+}
+
+async function parseResponse(res: Response): Promise<{ body: unknown; text: string }> {
+  const text = await res.text();
+  if (!text) return { body: undefined, text: '' };
+
+  if ((res.headers.get('content-type') || '').includes('application/json')) {
+    try {
+      return { body: JSON.parse(text), text };
+    } catch {
+      return { body: undefined, text };
+    }
+  }
+  return { body: text, text };
+}
+
+function responseMessage(status: number, body: unknown, text: string): string {
+  if (status === 502 || status === 503 || status === 504) {
+    return 'The service is temporarily unavailable. Please try again.';
+  }
+  if (status >= 500) return 'The server could not complete this request.';
+  if (body && typeof body === 'object' && 'error' in body && typeof body.error === 'string') {
+    return body.error;
+  }
+  if (typeof body === 'string' && !/<(?:html|body|head)\b/i.test(body)) return body;
+  if (text && !/<(?:html|body|head)\b/i.test(text)) return text;
+  return `Request failed (${status})`;
+}
+
+function responseCode(body: unknown): string | undefined {
+  if (body && typeof body === 'object' && 'code' in body && typeof body.code === 'string') {
+    return body.code;
+  }
+  return undefined;
+}
 
 async function performRefresh(retryRotatedOnce = true): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
+    const res = await fetchWithTimeout(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -44,8 +93,9 @@ async function performRefresh(retryRotatedOnce = true): Promise<boolean> {
       return false;
     }
 
-    const data = await res.json();
-    if (!data.accessToken) {
+    const { body } = await parseResponse(res);
+    const data = body && typeof body === 'object' && 'accessToken' in body ? body : null;
+    if (!data || typeof data.accessToken !== 'string' || !data.accessToken) {
       clearTokens();
       return false;
     }
@@ -73,7 +123,7 @@ export async function restoreSession(): Promise<boolean> {
 
 export async function logout(): Promise<void> {
   try {
-    await fetch(`${API_BASE}/auth/logout`, {
+    await fetchWithTimeout(`${API_BASE}/auth/logout`, {
       method: 'POST',
       credentials: 'include',
       keepalive: true,
@@ -108,28 +158,47 @@ function canAttemptRefresh(url: string): boolean {
 }
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
+  const headers = new Headers(options.headers);
+  if (options.body !== undefined && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
 
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
 
-  let res = await fetch(`${API_BASE}${url}`, {
-    ...options,
-    headers,
-    credentials: 'include',
-  });
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`${API_BASE}${url}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
+  } catch (error) {
+    const timedOut = error instanceof DOMException && error.name === 'AbortError';
+    throw new ApiError(
+      timedOut ? 'The request timed out. Please try again.' : 'Unable to connect to the API. Please try again.',
+      0,
+      timedOut ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR',
+    );
+  }
 
   if (res.status === 401 && canAttemptRefresh(url)) {
     const refreshed = await refreshTokens();
     if (refreshed && accessToken) {
-      headers.Authorization = `Bearer ${accessToken}`;
-      res = await fetch(`${API_BASE}${url}`, {
-        ...options,
-        headers,
-        credentials: 'include',
-      });
+      headers.set('Authorization', `Bearer ${accessToken}`);
+      try {
+        res = await fetchWithTimeout(`${API_BASE}${url}`, {
+          ...options,
+          headers,
+          credentials: 'include',
+        });
+      } catch (error) {
+        const timedOut = error instanceof DOMException && error.name === 'AbortError';
+        throw new ApiError(
+          timedOut ? 'The request timed out. Please try again.' : 'Unable to connect to the API. Please try again.',
+          0,
+          timedOut ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR',
+        );
+      }
     } else {
       clearTokens();
       if (typeof window !== 'undefined') {
@@ -142,17 +211,17 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 
   if (res.status === 204) return undefined as T;
 
-  const data = await res.json();
+  const { body, text } = await parseResponse(res);
   if (!res.ok) {
-    throw new ApiError(data.error || `Request failed (${res.status})`, res.status, data.code);
+    throw new ApiError(responseMessage(res.status, body, text), res.status, responseCode(body));
   }
 
-  return data;
+  return body as T;
 }
 
 export const api = {
   get: <T>(url: string) => request<T>(url),
-  post: <T>(url: string, body?: unknown) => request<T>(url, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  post: <T>(url: string, body?: unknown, headers?: HeadersInit) => request<T>(url, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body), headers }),
   put: <T>(url: string, body?: unknown) => request<T>(url, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(url: string, body?: unknown) => request<T>(url, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(url: string) => request<T>(url, { method: 'DELETE' }),

@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
-const API_URL = process.env.PLAYWRIGHT_API_URL || 'http://localhost:4000';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+const API_ORIGIN = process.env.API_ORIGIN || 'http://127.0.0.1:3001';
 
 export default defineConfig({
   testDir: './e2e',
@@ -28,15 +28,25 @@ export default defineConfig({
   webServer: [
     {
       command: 'pnpm --filter @stokku/api dev',
-      url: API_URL,
+      url: `${API_ORIGIN}/health`,
+      env: {
+        API_ORIGIN,
+        PORT: '3001',
+        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://stokku:stokku@127.0.0.1:5432/stokku-test',
+        DIRECT_URL: process.env.DIRECT_URL || 'postgresql://stokku:stokku@127.0.0.1:5432/stokku-test',
+        ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET || 'local-playwright-access-token-secret-at-least-32-characters',
+      },
       reuseExistingServer: !process.env.CI,
       timeout: 120000,
     },
     {
-      command: 'pnpm --filter @stokku/web dev',
+      command: 'pnpm --filter @stokku/web dev -- --hostname 127.0.0.1 --port 3000',
       url: BASE_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 120000,
+      env: {
+        API_ORIGIN,
+      },
     },
   ],
 });

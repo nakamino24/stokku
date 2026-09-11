@@ -38,6 +38,16 @@ const soInclude = {
   createdBy: { select: { name: true } },
 } satisfies Prisma.SalesOrderInclude;
 
+const soListSelect = {
+  id: true,
+  soNumber: true,
+  status: true,
+  orderDate: true,
+  totalAmount: true,
+  customer: { select: { id: true, name: true } },
+  _count: { select: { items: true } },
+} satisfies Prisma.SalesOrderSelect;
+
 export const SalesOrderService = {
   async list(orgId: string, query: Record<string, unknown>) {
     const pagination = parsePagination(query);
@@ -48,10 +58,10 @@ export const SalesOrderService = {
     const [data, total] = await Promise.all([
       prisma.salesOrder.findMany({
         where,
-        include: soInclude,
+        select: soListSelect,
         skip: (pagination.page - 1) * pagination.limit,
         take: pagination.limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }),
       prisma.salesOrder.count({ where }),
     ]);
@@ -145,7 +155,6 @@ export const SalesOrderService = {
       if (!order) throw AppError.notFound('Sales order not found');
 
       if (order.status === requestedStatus) return order;
-      if (requestedStatus === 'CONFIRMED' && order.status === 'ALLOCATED') return order;
 
       const validTransitions: Record<SalesOrderStatus, SalesOrderStatus[]> = {
         DRAFT: ['CONFIRMED', 'CANCELLED'],
@@ -169,23 +178,28 @@ export const SalesOrderService = {
       const now = new Date();
       const timestamps: Prisma.SalesOrderUpdateInput = {};
 
-      if (requestedStatus === 'CONFIRMED' || requestedStatus === 'ALLOCATED') {
+      if (requestedStatus === 'CONFIRMED') {
+        timestamps.confirmedAt = order.confirmedAt ?? now;
+      } else if (requestedStatus === 'ALLOCATED') {
         await InventoryAllocationService.allocateSalesOrder(tx, {
           organizationId: orgId,
           userId,
           salesOrderId: id,
           reference: order.soNumber,
         });
-        nextStatus = 'ALLOCATED';
-        timestamps.confirmedAt = order.confirmedAt ?? now;
         timestamps.allocatedAt = now;
       } else if (requestedStatus === 'CANCELLED') {
-        await InventoryAllocationService.releaseSalesOrder(tx, {
-          organizationId: orgId,
-          userId,
-          salesOrderId: id,
-          reference: order.soNumber,
+        const activeAllocations = await tx.inventoryAllocation.count({
+          where: { salesOrderId: id, organizationId: orgId, status: 'ACTIVE' },
         });
+        if (activeAllocations > 0) {
+          await InventoryAllocationService.releaseSalesOrder(tx, {
+            organizationId: orgId,
+            userId,
+            salesOrderId: id,
+            reference: order.soNumber,
+          });
+        }
         timestamps.cancelledAt = now;
       } else if (requestedStatus === 'SHIPPED') {
         await InventoryAllocationService.shipSalesOrder(tx, {

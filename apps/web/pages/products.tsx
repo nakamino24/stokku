@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import useSWR from 'swr';
 import { FiPlus, FiSearch, FiPackage, FiDollarSign } from 'react-icons/fi';
 import { api } from '../utils/api';
@@ -6,15 +6,25 @@ import { Card, Spinner, Badge, Button } from '@stokku/ui';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import CreateProductModal from '../components/products/CreateProductModal';
 
-const fetcher = (url: string) => api.get<any>(url);
+interface Product { id: string; name: string; sku?: string | null; unitPrice: string | number; status: string; variants?: Array<{ id: string; name: string }>; category?: { name: string } | null }
+interface ProductPage { data: Product[]; pagination?: { totalPages: number } }
+const fetcher = (url: string) => api.get<ProductPage>(url);
 
 export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setSearchQuery(search); setPage(1); }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const params = new URLSearchParams({ page: String(page), limit: '20' });
-  if (search) params.set('search', search);
+  if (searchQuery) params.set('search', searchQuery);
 
   const { data, error, isLoading, mutate } = useSWR(`/products?${params}`, fetcher);
 
@@ -22,13 +32,16 @@ export default function ProductsPage() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    setDeleteError(null);
     try {
       await api.delete(`/products/${deleteTarget}`);
       mutate();
-    } catch {
+      setFeedback('Product deactivated.');
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Unable to deactivate product.');
+    } finally {
       setDeleteTarget(null);
     }
-    setDeleteTarget(null);
   };
 
   const handleCancelDelete = useCallback(() => setDeleteTarget(null), []);
@@ -56,16 +69,17 @@ export default function ProductsPage() {
         />
       </div>
 
-      {error && <div className="p-4 bg-red-50 text-red-700 rounded-lg mb-4">Failed to load products: {error.message}</div>}
+      {error && <div role="alert" className="p-4 bg-red-50 text-red-700 rounded-lg mb-4">Failed to load products: {error.message}</div>}
+      {deleteError && <div role="alert" className="p-4 bg-red-50 text-red-700 rounded-lg mb-4">{deleteError}</div>}
 
       {isLoading ? (
         <div className="space-y-3">
           {[1,2,3].map(i => <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse" />)}
         </div>
-      ) : data?.data?.length > 0 ? (
+      ) : data?.data && data.data.length > 0 ? (
         <>
           <div className="space-y-2">
-            {data.data.map((product: any) => (
+            {data.data.map((product) => (
               <Card key={product.id} className="p-4 flex items-center justify-between hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3 flex-1">
                   <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500">
@@ -91,9 +105,9 @@ export default function ProductsPage() {
               </Card>
             ))}
           </div>
-          {data.pagination?.totalPages > 1 && (
+          {data.pagination && data.pagination.totalPages > 1 && (
             <div className="flex justify-center gap-2 mt-6">
-              {Array.from({ length: data.pagination.totalPages }, (_, i) => i + 1).map(p => (
+              {Array.from({ length: Math.min(data.pagination.totalPages, 20) }, (_, i) => i + 1).map(p => (
                 <button key={p} onClick={() => setPage(p)}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-all ${
                     p === page ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
@@ -110,7 +124,8 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {showCreate && <CreateProductModal onClose={() => { setShowCreate(false); mutate(); }} />}
+      {feedback && <div role="status" className="fixed bottom-5 right-5 z-40 rounded-lg bg-emerald-600 px-4 py-3 text-sm text-white shadow-lg">{feedback}<button aria-label="Dismiss" className="ml-3" onClick={() => setFeedback(null)}>Dismiss</button></div>}
+      {showCreate && <CreateProductModal onClose={() => { setShowCreate(false); mutate(); }} onCreated={() => setFeedback('Product created.')} />}
       <ConfirmDialog
         open={!!deleteTarget}
         title="Deactivate product"

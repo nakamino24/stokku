@@ -5,24 +5,27 @@ import { Button, Spinner } from '@stokku/ui';
 
 interface Props {
   onClose: () => void;
+  onCreated?: () => void;
 }
 
-export default function CreateProductModal({ onClose }: Props) {
-  const [form, setForm] = useState({ name: '', sku: '', description: '', unitPrice: 0, costPrice: 0, unit: 'pcs', categoryId: '', minStock: 0 });
+export default function CreateProductModal({ onClose, onCreated }: Props) {
+  const [form, setForm] = useState({ name: '', sku: '', description: '', unitPrice: '', costPrice: '', unit: 'pcs', categoryId: '', minStock: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: categories } = useSWR('/categories', (url: string) => api.get<any[]>(url));
+  const { data: categories, error: categoriesError } = useSWR('/categories', (url: string) => api.get<Array<{ id: string; name: string }>>(url));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
     try {
-      await api.post('/products', { ...form, categoryId: form.categoryId || undefined, unitPrice: Number(form.unitPrice), costPrice: Number(form.costPrice), minStock: Number(form.minStock) });
+      if (!form.name.trim()) { setError('Name is required'); return; }
+      await api.post('/products', { ...form, categoryId: form.categoryId || undefined, unitPrice: form.unitPrice || '0', costPrice: form.costPrice || '0', minStock: form.minStock || '0' });
+      onCreated?.();
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create product.');
     } finally {
       setSaving(false);
     }
@@ -30,8 +33,8 @@ export default function CreateProductModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Create Product</h2>
+      <div role="dialog" aria-modal="true" aria-labelledby="create-product-title" className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
+        <h2 id="create-product-title" className="text-lg font-bold text-gray-900 mb-4">Create Product</h2>
 
         {error && <div className="p-3 mb-4 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
@@ -63,7 +66,8 @@ export default function CreateProductModal({ onClose }: Props) {
             <select value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })}
               className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-indigo-500 outline-none bg-white">
               <option value="">No category</option>
-              {categories?.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {categoriesError && <option disabled>Unable to load categories</option>}
+              {categories?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div>
@@ -74,17 +78,17 @@ export default function CreateProductModal({ onClose }: Props) {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price</label>
-              <input type="number" step="0.01" value={form.unitPrice} onChange={e => setForm({ ...form, unitPrice: parseFloat(e.target.value) || 0 })}
+              <input type="text" inputMode="decimal" value={form.unitPrice} onChange={e => setForm({ ...form, unitPrice: e.target.value })}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-indigo-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cost Price</label>
-              <input type="number" step="0.01" value={form.costPrice} onChange={e => setForm({ ...form, costPrice: parseFloat(e.target.value) || 0 })}
+              <input type="text" inputMode="decimal" value={form.costPrice} onChange={e => setForm({ ...form, costPrice: e.target.value })}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-indigo-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
-              <input type="number" value={form.minStock} onChange={e => setForm({ ...form, minStock: parseInt(e.target.value) || 0 })}
+              <input type="text" inputMode="decimal" value={form.minStock} onChange={e => setForm({ ...form, minStock: e.target.value })}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-indigo-500 outline-none" />
             </div>
           </div>
