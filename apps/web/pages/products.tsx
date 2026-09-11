@@ -5,6 +5,7 @@ import { api } from '../utils/api';
 import { Card, Spinner, Badge, Button } from '@stokku/ui';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import CreateProductModal from '../components/products/CreateProductModal';
+import { Pagination } from '../components/Pagination';
 
 interface Product { id: string; name: string; sku?: string | null; unitPrice: string | number; status: string; variants?: Array<{ id: string; name: string }>; category?: { name: string } | null }
 interface ProductPage { data: Product[]; pagination?: { totalPages: number } }
@@ -105,16 +106,7 @@ export default function ProductsPage() {
               </Card>
             ))}
           </div>
-          {data.pagination && data.pagination.totalPages > 1 && (
-            <div className="flex justify-center gap-2 mt-6">
-              {Array.from({ length: Math.min(data.pagination.totalPages, 20) }, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPage(p)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-all ${
-                    p === page ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                  }`}>{p}</button>
-              ))}
-            </div>
-          )}
+          {data.pagination && <Pagination page={page} totalPages={data.pagination.totalPages} onPageChange={setPage} label="Product pages" />}
         </>
       ) : (
         <div className="text-center py-16 text-gray-400">

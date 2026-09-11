@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { FiPlus, FiShoppingCart, FiX } from 'react-icons/fi';
 import { api } from '../utils/api';
 import { Card, Button, Spinner, Badge, Modal } from '@stokku/ui';
+import { Pagination } from '../components/Pagination';
 
 interface Supplier { id: string; name: string; status: string }
 interface ProductVariant { id: string; name: string; sku?: string | null; unitPrice: string | number }
@@ -129,6 +130,7 @@ export default function PurchaseOrdersPage() {
         </div>
       )}
 
+      {data?.pagination && <Pagination page={page} totalPages={data.pagination.totalPages} onPageChange={setPage} label="Purchase order pages" />}
       {feedback && <div role="status" className="fixed bottom-5 right-5 z-40 rounded-lg bg-emerald-600 px-4 py-3 text-sm text-white shadow-lg">{feedback}<button aria-label="Dismiss" className="ml-3" onClick={() => setFeedback(null)}><FiX className="inline" /></button></div>}
 
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Purchase Order" size="xl">
