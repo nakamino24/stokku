@@ -1,22 +1,28 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginAsDemoUser, createCustomerViaUi } from './helpers';
 
-const stockRow = (page: Page) =>
-  page.getByTestId('stock-row-SOL-200-SOL-200-5L-WH-MAIN');
+const stockRows = (page: Page) =>
+  page.locator('[data-testid^="stock-row-SOL-200-SOL-200-5L-"]');
 
-async function readOnHand(page: Page) {
-  const text = await stockRow(page).innerText();
+function readOnHandFromText(text: string) {
   const match = text.match(/([0-9]+(?:\.[0-9]+)?)\s+on hand/);
   if (!match) throw new Error(`Could not read on-hand quantity from: ${text}`);
   return Number(match[1]);
+}
+
+async function readOnHand(stockRow: ReturnType<Page['getByTestId']>) {
+  return readOnHandFromText(await stockRow.innerText());
 }
 
 test.describe('Sales order workflow', () => {
   test('confirms without allocation, fulfills, ships once, and closes', async ({ page }) => {
     await loginAsDemoUser(page);
     await page.goto('/stock');
-    await expect(stockRow(page)).toBeVisible();
-    const beforeStock = await readOnHand(page);
+    await expect(stockRows(page).first()).toBeVisible();
+    const stockSnapshots = await stockRows(page).evaluateAll(rows => rows.map(row => ({
+      testId: row.getAttribute('data-testid') ?? '',
+      text: row.textContent ?? '',
+    })));
 
     const customerName = `E2E Customer ${Date.now()}`;
     await createCustomerViaUi(page, customerName);
@@ -39,11 +45,18 @@ test.describe('Sales order workflow', () => {
 
     await detailDialog.getByRole('button', { name: 'Allocate stock' }).click();
     await expect(detailDialog).toContainText('ALLOCATED');
-    await expect(detailDialog).toContainText('2 @ WH-MAIN');
+    const allocationText = await detailDialog.locator('tbody').innerText();
+    const warehouseMatch = allocationText.match(/\d+(?:\.\d+)? @ (WH-[A-Z]+)/);
+    if (!warehouseMatch) throw new Error(`Could not read allocated warehouse from: ${allocationText}`);
+    const selectedStockRow = page.getByTestId(`stock-row-SOL-200-SOL-200-5L-${warehouseMatch[1]}`);
+    const selectedSnapshot = stockSnapshots.find(snapshot => snapshot.testId.endsWith(`-${warehouseMatch[1]}`));
+    if (!selectedSnapshot) throw new Error(`Could not find stock snapshot for ${warehouseMatch[1]}`);
+    const beforeStock = readOnHandFromText(selectedSnapshot.text);
+    await expect(detailDialog).toContainText(/2 @ WH-[A-Z]+/);
 
     await page.goto('/stock');
-    await expect(stockRow(page)).toBeVisible();
-    await expect(stockRow(page)).toContainText('2 allocated');
+    await expect(selectedStockRow).toBeVisible();
+    await expect(selectedStockRow).toContainText('2 allocated');
 
     await page.goto('/sales-orders');
     await page.getByText(/SO-/).first().click();
@@ -58,11 +71,11 @@ test.describe('Sales order workflow', () => {
     await expect(fulfillmentDialog).toContainText('SHIPPED');
 
     await page.goto('/stock');
-    await expect(stockRow(page)).toBeVisible();
-    await expect.poll(() => readOnHand(page)).toBe(beforeStock - 2);
+    await expect(selectedStockRow).toBeVisible();
+    await expect.poll(() => readOnHand(selectedStockRow)).toBe(beforeStock - 2);
     await page.reload();
-    await expect(stockRow(page)).toBeVisible();
-    await expect.poll(() => readOnHand(page)).toBe(beforeStock - 2);
+    await expect(selectedStockRow).toBeVisible();
+    await expect.poll(() => readOnHand(selectedStockRow)).toBe(beforeStock - 2);
 
     await page.goto('/sales-orders');
     await page.getByText(/SO-/).first().click();
