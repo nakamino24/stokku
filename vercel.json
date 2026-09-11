@@ -7,7 +7,6 @@
       "PRISMA_SKIP_POSTINSTALL_GENERATE": "true"
     }
   },
-  "outputDirectory": "apps/web/.next",
   "headers": [
     {
       "source": "/(.*)",

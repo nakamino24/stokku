@@ -10,7 +10,7 @@ describe('zero-cost deployment contract', () => {
     const apiClient = readFileSync(resolve(root, 'apps/web/utils/api.ts'), 'utf8')
 
     expect(vercel.buildCommand).toBe('pnpm vercel-build')
-    expect(vercel.outputDirectory).toBe('apps/web/.next')
+    expect(vercel.outputDirectory).toBeUndefined()
     expect(vercel.functions).toBeUndefined()
     expect(vercel.rewrites).toBeUndefined()
     expect(nextConfig).toContain("process.env.API_ORIGIN")
