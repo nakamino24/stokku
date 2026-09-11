@@ -116,7 +116,10 @@ describe('WMS inventory core (PostgreSQL)', () => {
     expect(draft.status).toBe('DRAFT');
     expect(await prisma.inventoryAllocation.count({ where: { salesOrderId: draft.id } })).toBe(0);
 
-    const allocated = await SalesOrderService.updateStatus(ids.organization, ids.user, draft.id, 'CONFIRMED');
+    const confirmed = await SalesOrderService.updateStatus(ids.organization, ids.user, draft.id, 'CONFIRMED');
+    expect(confirmed.status).toBe('CONFIRMED');
+    expect(await prisma.inventoryAllocation.count({ where: { salesOrderId: draft.id } })).toBe(0);
+    const allocated = await SalesOrderService.updateStatus(ids.organization, ids.user, draft.id, 'ALLOCATED');
     expect(allocated.status).toBe('ALLOCATED');
     const allocations = await prisma.inventoryAllocation.findMany({ where: { salesOrderId: draft.id } });
     const allocatedTotal = allocations.reduce(
@@ -143,6 +146,7 @@ describe('WMS inventory core (PostgreSQL)', () => {
       items: [{ productId: ids.product, quantity: '10.25', unitPrice: '4.25' }],
     });
     await SalesOrderService.updateStatus(ids.organization, ids.user, draft.id, 'CONFIRMED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, draft.id, 'ALLOCATED');
     await SalesOrderService.updateStatus(ids.organization, ids.user, draft.id, 'PICKING');
     await SalesOrderService.updateStatus(ids.organization, ids.user, draft.id, 'PICKED');
     await SalesOrderService.updateStatus(ids.organization, ids.user, draft.id, 'PACKED');
@@ -193,8 +197,10 @@ describe('WMS inventory core (PostgreSQL)', () => {
       }),
     ]);
     const outcomes = await Promise.allSettled([
-      SalesOrderService.updateStatus(ids.organization, ids.user, first.id, 'CONFIRMED'),
-      SalesOrderService.updateStatus(ids.organization, ids.user, second.id, 'CONFIRMED'),
+      SalesOrderService.updateStatus(ids.organization, ids.user, first.id, 'CONFIRMED').then(() =>
+        SalesOrderService.updateStatus(ids.organization, ids.user, first.id, 'ALLOCATED')),
+      SalesOrderService.updateStatus(ids.organization, ids.user, second.id, 'CONFIRMED').then(() =>
+        SalesOrderService.updateStatus(ids.organization, ids.user, second.id, 'ALLOCATED')),
     ]);
     expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
     expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);

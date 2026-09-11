@@ -44,9 +44,20 @@ const poInclude = {
       receiptLines: { include: { goodsReceipt: { select: { receiptNumber: true, receivedAt: true } } } },
     },
   },
-  goodsReceipts: { orderBy: { receivedAt: 'desc' as const } },
+  goodsReceipts: { orderBy: { receivedAt: 'desc' as const }, include: { lines: true } },
   createdBy: { select: { name: true } },
 } satisfies Prisma.PurchaseOrderInclude;
+
+const poListSelect = {
+  id: true,
+  poNumber: true,
+  status: true,
+  orderDate: true,
+  expectedDate: true,
+  totalAmount: true,
+  supplier: { select: { id: true, name: true } },
+  _count: { select: { items: true } },
+} satisfies Prisma.PurchaseOrderSelect;
 
 export const PurchaseOrderService = {
   async list(orgId: string, query: Record<string, unknown>) {
@@ -58,10 +69,10 @@ export const PurchaseOrderService = {
     const [data, total] = await Promise.all([
       prisma.purchaseOrder.findMany({
         where,
-        include: poInclude,
+        select: poListSelect,
         skip: (pagination.page - 1) * pagination.limit,
         take: pagination.limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }),
       prisma.purchaseOrder.count({ where }),
     ]);

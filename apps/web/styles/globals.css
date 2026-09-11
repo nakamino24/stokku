@@ -80,3 +80,19 @@ input:-webkit-autofill {
 .animate-scale-in {
   animation: scaleIn 0.35s ease-out both;
 }
+
+.field {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: white;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.875rem;
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.field:focus {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 2px var(--color-brand-100);
+}

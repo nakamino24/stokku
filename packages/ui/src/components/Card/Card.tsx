@@ -7,6 +7,7 @@ export interface CardProps {
   style?: React.CSSProperties;
   className?: string;
   onClick?: () => void;
+  'data-testid'?: string;
 }
 
 const paddingStyles = {
@@ -40,10 +41,12 @@ export const Card: React.FC<CardProps> = ({
   style,
   className,
   onClick,
+  'data-testid': testId,
 }) => {
   return (
     <div
       className={className}
+      data-testid={testId}
       style={{
         borderRadius: '8px',
         transition: 'box-shadow 150ms ease',
