@@ -226,8 +226,8 @@ function GoodsReceiptForm({ order, warehouses, onCancel, onPosted }: { order: Pu
     event.preventDefault(); setError(null);
     const items = order.items.map((item) => ({ itemId: item.id, ...(received[item.id] ?? { receivedQty: '0', acceptedQty: '0', rejectedQty: '0' }) })).filter((item) => Number(item.receivedQty) > 0);
     if (!warehouseId || items.length === 0) { setError('Warehouse and at least one received quantity are required.'); return; }
-    if (items.some((item) => Number(item.acceptedQty) + Number(item.rejectedQty) !== Number(item.receivedQty))) { setError('Accepted plus rejected quantity must equal received quantity.'); return; }
     if (items.some((item) => Number(item.acceptedQty) > Number(remaining.find(({ item: line }) => line.id === item.itemId)?.remaining ?? 0))) { setError('Accepted quantity cannot exceed the remaining ordered quantity.'); return; }
+    if (items.some((item) => Number(item.acceptedQty) + Number(item.rejectedQty) !== Number(item.receivedQty))) { setError('Accepted plus rejected quantity must equal received quantity.'); return; }
     setSaving(true);
     try { await api.post(`/purchase-orders/${order.id}/receive`, { warehouseId, supplierDeliveryReference: reference || undefined, items }, { 'Idempotency-Key': idempotencyKey }); await onPosted(); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to post goods receipt.'); } finally { setSaving(false); }
   };
