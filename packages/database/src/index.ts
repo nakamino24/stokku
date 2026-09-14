@@ -64,11 +64,13 @@ export {
   DocumentType,
   PurchaseOrderStatus,
   SalesOrderStatus,
+  EmailOutboxStatus,
 } from '@prisma/client';
 
 export type {
   Organization,
   OrganizationMember,
+  OrganizationMemberWarehouse,
   User,
   Role,
   RolePermission,
@@ -92,4 +94,5 @@ export type {
   SalesOrder,
   SalesOrderItem,
   AuditLog,
+  EmailOutboxMessage,
 } from '@prisma/client';

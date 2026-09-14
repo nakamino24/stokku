@@ -1,5 +1,5 @@
-import request from 'supertest';
-import { createTestApp } from '../../../__tests__/helpers';
+import request from 'supertest'
+import { createTestApp } from '../../../__tests__/helpers'
 
 jest.mock('@stokku/database', () => ({
   prisma: {
@@ -16,176 +16,247 @@ jest.mock('@stokku/database', () => ({
     role: { create: jest.fn() },
     organizationMember: { create: jest.fn() },
     refreshSession: { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
+    emailOutboxMessage: { create: jest.fn() },
     $transaction: jest.fn(),
   },
-}));
+}))
 
-jest.mock('bcryptjs', () => ({
-  hash: jest.fn(),
-  compare: jest.fn(),
-}));
+jest.mock('argon2', () => ({
+  argon2id: 2,
+  hash: jest.fn().mockResolvedValue('$argon2id$v=19$m=65536,t=3,p=1$hash'),
+  verify: jest.fn().mockResolvedValue(true),
+  needsRehash: jest.fn().mockReturnValue(false),
+}))
 
 jest.mock('jsonwebtoken', () => ({
   sign: jest.fn(),
   verify: jest.fn(),
-}));
+}))
 
 jest.mock('../../../config', () => ({
   config: {
-    jwt: { accessSecret: 'test-access-secret', refreshSecret: 'test-refresh-secret', accessExpiresIn: '15m', refreshExpiresIn: '7d' },
+    jwt: {
+      accessSecret: 'test-access-secret',
+      refreshSecret: 'test-refresh-secret',
+      accessExpiresIn: '15m',
+      refreshExpiresIn: '7d',
+    },
     cors: { origins: ['http://localhost:3000'] },
     port: 3001,
     nodeEnv: 'test',
-    auth: { refreshSessionTtlSeconds: 604800, refreshReuseGraceSeconds: 2, passwordResetTtlMinutes: 30 },
+    auth: {
+      refreshSessionTtlSeconds: 604800,
+      refreshReuseGraceSeconds: 2,
+      passwordResetTtlMinutes: 30,
+      emailVerificationTtlMinutes: 1440,
+    },
     rateLimit: { api: 100, auth: 20, passwordReset: 5 },
+    emailOutbox: { encryptionKey: 'test-outbox-encryption-key' },
     appUrl: 'http://localhost:3000',
   },
-}));
+}))
 
 jest.mock('../../../middleware/auth', () => ({
   authMiddleware: (req: any, _res: any, next: any) => {
-    req.user = { id: 'user-1', email: 'admin@test.com', name: 'Admin', role: 'ADMIN', organizationId: 'org-1', organizationSlug: 'test-org' };
-    next();
+    req.user = {
+      id: 'user-1',
+      email: 'admin@test.com',
+      name: 'Admin',
+      role: 'ADMIN',
+      organizationId: 'org-1',
+      organizationSlug: 'test-org',
+    }
+    next()
   },
-}));
+}))
 
-jest.mock('express-rate-limit', () => () => (_req: any, _res: any, next: any) => next());
+jest.mock('express-rate-limit', () => () => (_req: any, _res: any, next: any) => next())
 
 describe('POST /auth/register', () => {
-  let app: ReturnType<typeof createTestApp>;
-  const { prisma } = jest.requireMock('@stokku/database');
-  const bcrypt = jest.requireMock('bcryptjs');
-  const jwt = jest.requireMock('jsonwebtoken');
+  let app: ReturnType<typeof createTestApp>
+  const { prisma } = jest.requireMock('@stokku/database')
+  const argon2 = jest.requireMock('argon2')
+  const jwt = jest.requireMock('jsonwebtoken')
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (prisma.$transaction as jest.Mock).mockImplementation((fn: (tx: any) => any) => {
+    jest.clearAllMocks()
+    ;(prisma.$transaction as jest.Mock).mockImplementation((fn: (tx: any) => any) => {
       const tx = {
         organization: { create: prisma.organization.create, update: prisma.organization.update },
-        user: { create: prisma.user.create, findUnique: prisma.user.findUnique, update: prisma.user.update },
+        user: {
+          create: prisma.user.create,
+          findUnique: prisma.user.findUnique,
+          update: prisma.user.update,
+        },
         auditLog: { create: prisma.auditLog.create },
         role: { create: prisma.role.create },
         organizationMember: { create: prisma.organizationMember.create },
-        refreshSession: { create: prisma.refreshSession.create, updateMany: prisma.refreshSession.updateMany },
-      };
-      return Promise.resolve(fn(tx));
-    });
-    (prisma.role.create as jest.Mock).mockImplementation(({ data }: { data: { slug: string } }) => ({
-      id: `role-${data.slug}`,
-      slug: data.slug,
-    }));
-    (prisma.refreshSession.create as jest.Mock).mockResolvedValue({ id: 'session-1' });
+        refreshSession: {
+          create: prisma.refreshSession.create,
+          updateMany: prisma.refreshSession.updateMany,
+        },
+        emailOutboxMessage: { create: prisma.emailOutboxMessage.create },
+      }
+      return Promise.resolve(fn(tx))
+    })
+    ;(prisma.role.create as jest.Mock).mockImplementation(
+      ({ data }: { data: { slug: string } }) => ({
+        id: `role-${data.slug}`,
+        slug: data.slug,
+      })
+    )
+    ;(prisma.refreshSession.create as jest.Mock).mockResolvedValue({ id: 'session-1' })
 
-    app = createTestApp((app) => {
-      const routes = jest.requireActual('../auth.routes').default;
-      app.use('/api/v1/auth', routes);
-    });
-  });
+    app = createTestApp(app => {
+      const routes = jest.requireActual('../auth.routes').default
+      app.use('/api/v1/auth', routes)
+    })
+  })
 
   it('should return 201 and tokens on successful registration', async () => {
-    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-    (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
-    (prisma.organization.create as jest.Mock).mockResolvedValue({ id: 'org-1', slug: 'new-org' });
-    (prisma.user.create as jest.Mock).mockResolvedValue({ id: 'user-1', email: 'new@test.com', name: 'New', role: 'OWNER', organizationId: 'org-1' });
-    (jwt.sign as jest.Mock).mockReturnValue('mock-token');
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null)
+    ;(argon2.hash as jest.Mock).mockResolvedValue('hashed')
+    ;(prisma.organization.create as jest.Mock).mockResolvedValue({ id: 'org-1', slug: 'new-org' })
+    ;(prisma.user.create as jest.Mock).mockResolvedValue({
+      id: 'user-1',
+      email: 'new@test.com',
+      name: 'New',
+      role: 'OWNER',
+      organizationId: 'org-1',
+    })
+    ;(jwt.sign as jest.Mock).mockReturnValue('mock-token')
 
     const res = await request(app)
       .post('/api/v1/auth/register')
-      .send({ email: 'new@test.com', password: 'Password1', name: 'New User', organizationName: 'New Org' });
+      .send({
+        email: 'new@test.com',
+        password: 'Password1',
+        name: 'New User',
+        organizationName: 'New Org',
+      })
 
-    expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty('accessToken');
-    expect(res.body).toHaveProperty('user');
-  });
+    expect(res.status).toBe(201)
+    expect(res.body).toHaveProperty('verificationRequired', true)
+    expect(res.body).toHaveProperty('user')
+  })
 
   it('should return 409 for duplicate email', async () => {
-    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'existing' });
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'existing' })
 
     const res = await request(app)
       .post('/api/v1/auth/register')
-      .send({ email: 'existing@test.com', password: 'Password1', name: 'Existing', organizationName: 'Org' });
+      .send({
+        email: 'existing@test.com',
+        password: 'Password1',
+        name: 'Existing',
+        organizationName: 'Org',
+      })
 
-    expect(res.status).toBe(409);
-  });
+    expect(res.status).toBe(409)
+  })
 
   it('should return 400 for invalid input', async () => {
     const res = await request(app)
       .post('/api/v1/auth/register')
-      .send({ email: 'not-an-email', password: 'short', name: '', organizationName: '' });
+      .send({ email: 'not-an-email', password: 'short', name: '', organizationName: '' })
 
-    expect(res.status).toBe(400);
-  });
-});
+    expect(res.status).toBe(400)
+  })
+})
 
 describe('POST /auth/login', () => {
-  let app: ReturnType<typeof createTestApp>;
-  const { prisma } = jest.requireMock('@stokku/database');
-  const bcrypt = jest.requireMock('bcryptjs');
-  const jwt = jest.requireMock('jsonwebtoken');
+  let app: ReturnType<typeof createTestApp>
+  const { prisma } = jest.requireMock('@stokku/database')
+  const argon2 = jest.requireMock('argon2')
+  const jwt = jest.requireMock('jsonwebtoken')
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (prisma.refreshSession.create as jest.Mock).mockResolvedValue({ id: 'session-1' });
-    app = createTestApp((app) => {
-      const routes = jest.requireActual('../auth.routes').default;
-      app.use('/api/v1/auth', routes);
-    });
-  });
+    jest.clearAllMocks()
+    ;(prisma.refreshSession.create as jest.Mock).mockResolvedValue({ id: 'session-1' })
+    app = createTestApp(app => {
+      const routes = jest.requireActual('../auth.routes').default
+      app.use('/api/v1/auth', routes)
+    })
+  })
 
   it('should return 200 and tokens on valid login', async () => {
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({
-      id: 'user-1', email: 'demo@test.com', name: 'Demo', passwordHash: 'hash',
-      isActive: true, role: 'ADMIN', organizationId: 'org-1',
+      id: 'user-1',
+      email: 'demo@test.com',
+      name: 'Demo',
+      passwordHash: 'hash',
+      isActive: true,
+      role: 'ADMIN',
+      organizationId: 'org-1',
+      emailVerified: true,
       organization: { slug: 'demo-org' },
-    });
-    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-    (jwt.sign as jest.Mock).mockReturnValue('token');
+    })
+    ;(argon2.verify as jest.Mock).mockResolvedValue(true)
+    ;(jwt.sign as jest.Mock).mockReturnValue('token')
 
     const res = await request(app)
       .post('/api/v1/auth/login')
-      .send({ email: 'demo@test.com', password: 'password' });
+      .send({ email: 'demo@test.com', password: 'password' })
 
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('accessToken');
-  });
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveProperty('accessToken')
+    expect(res.body).not.toHaveProperty('refreshToken')
+    expect(res.headers['set-cookie']).toEqual(expect.arrayContaining([expect.stringContaining('stokku_refresh=')]))
+  })
 
   it('should return 401 for wrong password', async () => {
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({
-      id: 'user-1', email: 'demo@test.com', name: 'Demo', passwordHash: 'hash',
-      isActive: true, role: 'ADMIN', organizationId: 'org-1',
+      id: 'user-1',
+      email: 'demo@test.com',
+      name: 'Demo',
+      passwordHash: 'hash',
+      isActive: true,
+      role: 'ADMIN',
+      organizationId: 'org-1',
+      emailVerified: true,
       organization: { slug: 'demo-org' },
-    });
-    (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+    })
+    ;(argon2.verify as jest.Mock).mockResolvedValue(false)
 
     const res = await request(app)
       .post('/api/v1/auth/login')
-      .send({ email: 'demo@test.com', password: 'wrong' });
+      .send({ email: 'demo@test.com', password: 'wrong' })
 
-    expect(res.status).toBe(401);
-  });
-});
+    expect(res.status).toBe(401)
+  })
+})
 
 describe('GET /auth/me', () => {
-  let app: ReturnType<typeof createTestApp>;
-  const { prisma } = jest.requireMock('@stokku/database');
+  let app: ReturnType<typeof createTestApp>
+  const { prisma } = jest.requireMock('@stokku/database')
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    app = createTestApp((app) => {
-      const routes = jest.requireActual('../auth.routes').default;
-      app.use('/api/v1/auth', routes);
-    });
-  });
+    jest.clearAllMocks()
+    app = createTestApp(app => {
+      const routes = jest.requireActual('../auth.routes').default
+      app.use('/api/v1/auth', routes)
+    })
+  })
 
   it('should return current user profile', async () => {
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({
-      id: 'user-1', email: 'admin@test.com', name: 'Admin', role: 'ADMIN',
-      phone: null, avatarUrl: null,
-      organization: { id: 'org-1', name: 'Test Org', slug: 'test-org', currency: 'USD', timezone: 'UTC' },
-    });
+      id: 'user-1',
+      email: 'admin@test.com',
+      name: 'Admin',
+      role: 'ADMIN',
+      phone: null,
+      avatarUrl: null,
+      organization: {
+        id: 'org-1',
+        name: 'Test Org',
+        slug: 'test-org',
+        currency: 'USD',
+        timezone: 'UTC',
+      },
+    })
 
-    const res = await request(app).get('/api/v1/auth/me');
-    expect(res.status).toBe(200);
-    expect(res.body.email).toBe('admin@test.com');
-  });
-});
+    const res = await request(app).get('/api/v1/auth/me')
+    expect(res.status).toBe(200)
+    expect(res.body.email).toBe('admin@test.com')
+  })
+})

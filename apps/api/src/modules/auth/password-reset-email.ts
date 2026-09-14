@@ -1,29 +1,17 @@
-import { config } from '../../config';
-import { logger } from '../../utils/logger';
+import { EmailOutboxService } from './email-outbox.service';
 
-export interface PasswordResetEmailInput {
-  email: string;
-  resetUrl: string;
+export async function enqueuePasswordResetEmail(
+  client: Parameters<typeof EmailOutboxService.enqueue>[0],
+  userId: string,
+  email: string,
+  resetUrl: string,
+) {
+  return EmailOutboxService.enqueue(client, {
+    userId,
+    kind: 'PASSWORD_RESET',
+    toEmail: email,
+    subject: 'Reset your Stokku password',
+    textBody: `Reset your Stokku password: ${resetUrl}`,
+    htmlBody: `<p>Reset your Stokku password:</p><p><a href="${resetUrl}">Reset password</a></p>`,
+  })
 }
-
-export interface PasswordResetEmailSender {
-  sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<void>;
-}
-
-class DevelopmentPasswordResetEmailSender implements PasswordResetEmailSender {
-  async sendPasswordResetEmail({ email, resetUrl }: PasswordResetEmailInput): Promise<void> {
-    logger.info('Development password reset email', { email, resetUrl });
-  }
-}
-
-class UnconfiguredProductionPasswordResetEmailSender implements PasswordResetEmailSender {
-  async sendPasswordResetEmail({ email }: PasswordResetEmailInput): Promise<void> {
-    // Never include the reset URL or raw token in production logs.
-    logger.warn('Password reset email provider is not configured', { email });
-  }
-}
-
-export const passwordResetEmailSender: PasswordResetEmailSender =
-  config.nodeEnv === 'production'
-    ? new UnconfiguredProductionPasswordResetEmailSender()
-    : new DevelopmentPasswordResetEmailSender();

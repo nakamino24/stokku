@@ -13,25 +13,25 @@ router.use(authMiddleware);
 
 router.get('/', requirePermission('inventory.read'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const user = req.user!;
-  const result = await StockService.list(user.organizationId, req.query as Record<string, unknown>);
+  const result = await StockService.list(user.organizationId, user.id, req.query as Record<string, unknown>);
   res.json(result);
 }));
 
 router.get('/movements', requirePermission('inventory.read'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const user = req.user!;
-  const result = await StockService.getMovements(user.organizationId, req.query as Record<string, unknown>);
+  const result = await StockService.getMovements(user.organizationId, user.id, req.query as Record<string, unknown>);
   res.json(result);
 }));
 
 router.get('/low-stock', requirePermission('inventory.read'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const user = req.user!;
-  const result = await StockService.list(user.organizationId, { ...req.query, lowStock: 'true' });
+  const result = await StockService.list(user.organizationId, user.id, { ...req.query, lowStock: 'true' });
   res.json(result);
 }));
 
 router.get('/reconciliation', requirePermission('inventory.reconcile'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const user = req.user!;
-  const result = await StockService.reconcile(user.organizationId);
+  const result = await StockService.reconcile(user.organizationId, user.id);
   res.json(result);
 }));
 

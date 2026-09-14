@@ -77,6 +77,8 @@ CREATE TABLE "OrganizationMember" (
   CONSTRAINT "OrganizationMember_pkey" PRIMARY KEY ("id")
 );
 
+CREATE UNIQUE INDEX "OrganizationMember_organizationId_id_key" ON "OrganizationMember"("organizationId", "id");
+
 CREATE TABLE "RolePermission" (
   "id" TEXT NOT NULL,
   "roleId" TEXT NOT NULL,
@@ -208,6 +210,8 @@ CREATE TABLE "Warehouse" (
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "Warehouse_pkey" PRIMARY KEY ("id")
 );
+
+CREATE UNIQUE INDEX "Warehouse_organizationId_id_key" ON "Warehouse"("organizationId", "id");
 
 CREATE TABLE "WarehouseZone" (
   "id" TEXT NOT NULL,

@@ -1,87 +1,96 @@
-import { Request, Response, NextFunction } from 'express';
-import { errorHandler } from '../errorHandler';
-import { AppError } from '../../utils/errors';
+import { Request, Response, NextFunction } from 'express'
+import { errorHandler } from '../errorHandler'
+import { AppError } from '../../utils/errors'
 
 describe('errorHandler', () => {
-  let req: Request;
-  let res: Response;
-  let next: NextFunction;
+  let req: Request
+  let res: Response
+  let next: NextFunction
 
   beforeEach(() => {
-    req = {} as Request;
+    req = { headers: { 'x-request-id': 'req-test-1' } } as unknown as Request
     res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
-    } as unknown as Response;
-    next = jest.fn();
-  });
+    } as unknown as Response
+    next = jest.fn()
+  })
 
   it('should handle AppError with status and code', () => {
-    const err = AppError.badRequest('Invalid input', { field: 'email' });
+    const err = AppError.badRequest('Invalid input', { field: 'email' })
 
-    errorHandler(err, req, res, next);
+    errorHandler(err, req, res, next)
 
-    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.status).toHaveBeenCalledWith(400)
     expect(res.json).toHaveBeenCalledWith({
-      error: 'Invalid input',
-      code: 'BAD_REQUEST',
-      details: { field: 'email' },
-    });
-  });
+      error: {
+        message: 'Invalid input',
+        code: 'BAD_REQUEST',
+        requestId: 'req-test-1',
+        details: { field: 'email' },
+      },
+    })
+  })
 
   it('should handle unauthorized error', () => {
-    const err = AppError.unauthorized('Login required');
+    const err = AppError.unauthorized('Login required')
 
-    errorHandler(err, req, res, next);
+    errorHandler(err, req, res, next)
 
-    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.status).toHaveBeenCalledWith(401)
     expect(res.json).toHaveBeenCalledWith({
-      error: 'Login required',
-      code: 'UNAUTHORIZED',
-    });
-  });
+      error: {
+        message: 'Login required',
+        code: 'UNAUTHORIZED',
+        requestId: 'req-test-1',
+      },
+    })
+  })
 
   it('should handle forbidden error', () => {
-    const err = AppError.forbidden('Access denied');
+    const err = AppError.forbidden('Access denied')
 
-    errorHandler(err, req, res, next);
+    errorHandler(err, req, res, next)
 
-    expect(res.status).toHaveBeenCalledWith(403);
-  });
+    expect(res.status).toHaveBeenCalledWith(403)
+  })
 
   it('should handle not found error', () => {
-    const err = AppError.notFound('Resource not found');
+    const err = AppError.notFound('Resource not found')
 
-    errorHandler(err, req, res, next);
+    errorHandler(err, req, res, next)
 
-    expect(res.status).toHaveBeenCalledWith(404);
-  });
+    expect(res.status).toHaveBeenCalledWith(404)
+  })
 
   it('should handle conflict error', () => {
-    const err = AppError.conflict('Duplicate entry');
+    const err = AppError.conflict('Duplicate entry')
 
-    errorHandler(err, req, res, next);
+    errorHandler(err, req, res, next)
 
-    expect(res.status).toHaveBeenCalledWith(409);
-  });
+    expect(res.status).toHaveBeenCalledWith(409)
+  })
 
   it('should handle internal error', () => {
-    const err = AppError.internal('Something broke');
+    const err = AppError.internal('Something broke')
 
-    errorHandler(err, req, res, next);
+    errorHandler(err, req, res, next)
 
-    expect(res.status).toHaveBeenCalledWith(500);
-  });
+    expect(res.status).toHaveBeenCalledWith(500)
+  })
 
   it('should return 500 for unknown errors', () => {
-    const err = new Error('Unexpected error');
+    const err = new Error('Unexpected error')
 
-    errorHandler(err, req, res, next);
+    errorHandler(err, req, res, next)
 
-    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.status).toHaveBeenCalledWith(500)
     expect(res.json).toHaveBeenCalledWith({
-      error: 'Internal server error',
-      code: 'INTERNAL_ERROR',
-    });
-  });
-});
+      error: {
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        requestId: 'req-test-1',
+      },
+    })
+  })
+})

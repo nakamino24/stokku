@@ -22,4 +22,13 @@ describe('PostgreSQL inventory schema contract', () => {
     expect(baseline).toContain('CREATE TRIGGER "StockMovement_immutable"');
     expect(baseline).toContain('NULLS NOT DISTINCT');
   });
+
+  it('defines append-only audit controls in the follow-up migration', () => {
+    const migration = readFileSync(
+      resolve(packageRoot, 'prisma/migrations/20260913002000_append_only_audit/migration.sql'),
+      'utf8',
+    );
+    expect(migration).toContain('CREATE TRIGGER "AuditLog_immutable"');
+    expect(migration).toContain('BEFORE UPDATE OR DELETE ON "AuditLog"');
+  });
 });

@@ -1,0 +1,21 @@
+requirement_id,source,scope,verification,release_gate,status
+AUTH-01,docs/SRS.md,Argon2id password handling,unit plus integration,Phase 1,planned
+AUTH-02,docs/SRS.md,Email verification gate,integration plus e2e,Phase 1,planned
+AUTH-03,docs/SRS.md,Password reset single use,integration plus e2e,Phase 1,planned
+AUTH-04,docs/SRS.md,Refresh rotation and revocation,integration plus e2e,Phase 1,planned
+AUTH-07,docs/SRS.md,Role authority and owner invariants,integration security tests,Phase 1,planned
+TEN-01,docs/SRS.md,Organization scope on records,migration plus integration,Phase 2,planned
+TEN-02,docs/SRS.md,Warehouse scope on operations,integration plus e2e,Phase 2,planned
+INV-01,docs/SRS.md,Append-only inventory ledger,integration plus database policy,Phase 3,planned
+INV-02,docs/SRS.md,Balance projection invariant,unit plus reconciliation integration,Phase 3,planned
+INV-04,docs/SRS.md,Transactional idempotent mutation,concurrency integration,Phase 3,planned
+INV-05,docs/SRS.md,Compensating reversals,unit plus integration,Phase 3,planned
+INB-02,docs/SRS.md,Inspection and receipt variance,contract plus e2e,Phase 4,planned
+INB-03,docs/SRS.md,Exactly-once receipt posting,retry integration plus e2e,Phase 4,planned
+INB-04,docs/SRS.md,Putaway without duplicate stock,workflow integration plus e2e,Phase 4,planned
+OUT-01,docs/SRS.md,Warehouse/bin allocation,concurrency integration,Phase 5,planned
+OUT-03,docs/SRS.md,Exactly-once shipment deduction,retry integration plus e2e,Phase 5,planned
+UX-01,docs/SRS.md,Tablet-first task execution,Playwright mobile plus accessibility,Phase 6,planned
+SEC-01,docs/SRS.md,No critical vulnerability,dependency SAST DAST scans,Phase 8,planned
+SEC-02,docs/SRS.md,Allowlisted response DTOs,contract tests,Phase 1,planned
+REL-02,docs/SRS.md,Backup restore and rollback,operational drills,Phase 8,planned

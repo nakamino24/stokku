@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: stokku
       POSTGRES_DB: stokku
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
     healthcheck:
@@ -28,8 +28,8 @@ services:
       NODE_ENV: development
       PORT: 4000
       DATABASE_URL: postgresql://stokku:stokku@postgres:5432/stokku
-      JWT_ACCESS_SECRET: dev-access-secret-at-least-16-chars
-      JWT_REFRESH_SECRET: dev-refresh-secret-at-least-16-chars
+      ACCESS_TOKEN_SECRET: dev-access-secret-at-least-32-characters
+      EMAIL_OUTBOX_ENCRYPTION_KEY: dev-outbox-encryption-key-at-least-32
       CORS_ORIGINS: http://localhost:3000
     volumes:
       - .:/app
@@ -43,7 +43,6 @@ services:
       sh -c "
         pnpm --filter @stokku/database exec prisma generate &&
         pnpm --filter @stokku/database exec prisma migrate deploy &&
-        pnpm --filter @stokku/database exec prisma db seed &&
         pnpm --filter @stokku/api dev
       "
 

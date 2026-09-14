@@ -2,7 +2,11 @@ import request from 'supertest'
 import { prisma } from '@stokku/database'
 import app from '../app'
 
-describe('GET /health with PostgreSQL', () => {
+const databaseUrl = process.env.DATABASE_URL
+const databaseCredentialsAreConfigured = Boolean(databaseUrl) && process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true'
+const describeIfDatabase = databaseCredentialsAreConfigured ? describe : describe.skip
+
+describeIfDatabase('GET /health with PostgreSQL', () => {
   afterAll(async () => {
     await prisma.$disconnect()
   })

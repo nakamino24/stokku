@@ -177,6 +177,7 @@ model User {
   organizationMembers   OrganizationMember[]
   refreshSessions       RefreshSession[]
   passwordResetTokens   PasswordResetToken[]
+  emailOutboxMessages   EmailOutboxMessage[]
 
   @@index([organizationId])
   @@index([email])
@@ -193,9 +194,26 @@ model OrganizationMember {
   assignedRole   Role?            @relation(fields: [roleId], references: [id])
   joinedAt       DateTime         @default(now())
 
+  warehouseAssignments OrganizationMemberWarehouse[] @relation("MemberWarehouseAssignments")
+
   @@unique([organizationId, userId])
+  @@unique([organizationId, id])
   @@index([userId])
   @@index([roleId])
+}
+
+model OrganizationMemberWarehouse {
+  id                   String             @id @default(uuid())
+  organizationId       String
+  organizationMemberId String
+  warehouseId          String
+  organizationMember   OrganizationMember @relation("MemberWarehouseAssignments", fields: [organizationId, organizationMemberId], references: [organizationId, id], onDelete: Cascade)
+  warehouse            Warehouse          @relation("WarehouseMemberAssignments", fields: [organizationId, warehouseId], references: [organizationId, id], onDelete: Cascade)
+  assignedAt           DateTime           @default(now())
+
+  @@unique([organizationId, organizationMemberId, warehouseId])
+  @@index([organizationId, warehouseId])
+  @@index([organizationMemberId])
 }
 
 model Role {
@@ -403,8 +421,10 @@ model Warehouse {
   fromMovements StockMovement[] @relation("fromWarehouse")
   toMovements   StockMovement[] @relation("toWarehouse")
   goodsReceipts GoodsReceipt[]
+  memberAssignments OrganizationMemberWarehouse[] @relation("WarehouseMemberAssignments")
 
   @@unique([organizationId, code])
+  @@unique([organizationId, id])
   @@index([organizationId])
 }
 
@@ -779,4 +799,35 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+enum EmailOutboxStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+model EmailOutboxMessage {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind          String
+  toEmail       String
+  subject       String
+  payloadCiphertext String
+  payloadIv     String
+  payloadTag    String
+  status        EmailOutboxStatus @default(PENDING)
+  attempts      Int              @default(0)
+  availableAt   DateTime         @default(now())
+  lockedAt      DateTime?
+  lockedBy      String?
+  sentAt        DateTime?
+  lastError     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([status, availableAt])
+  @@index([userId, kind, createdAt])
 }

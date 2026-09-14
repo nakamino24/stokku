@@ -29,6 +29,6 @@ describe('credentialed CORS policy', () => {
     const response = await request(app).get('/probe').set('Origin', 'https://attacker.example')
 
     expect(response.status).toBe(403)
-    expect(response.body.code).toBe('FORBIDDEN')
+    expect(response.body.error.code).toBe('FORBIDDEN')
   })
 })

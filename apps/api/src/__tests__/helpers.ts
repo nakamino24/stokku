@@ -1,12 +1,12 @@
-import express, { Express } from 'express';
-import { errorHandler } from '../middleware/errorHandler';
+import express, { Express } from 'express'
+import { errorHandler } from '../middleware/errorHandler'
 
 export function createTestApp(routes: (app: Express) => void): Express {
-  const app = express();
-  app.use(express.json());
-  routes(app);
-  app.use(errorHandler);
-  return app;
+  const app = express()
+  app.use(express.json())
+  routes(app)
+  app.use(errorHandler)
+  return app
 }
 
 export const mockUser = {
@@ -16,14 +16,16 @@ export const mockUser = {
   role: 'ADMIN',
   organizationId: 'org-1',
   organizationSlug: 'test-org',
-};
+  sessionId: 'session-1',
+  emailVerified: true,
+}
 
 export function mockAuthMiddleware(req: any, _res: any, next: any) {
-  req.user = mockUser;
-  next();
+  req.user = mockUser
+  next()
 }
 
 export function mockOwnerMiddleware(req: any, _res: any, next: any) {
-  req.user = { ...mockUser, role: 'OWNER' };
-  next();
+  req.user = { ...mockUser, role: 'OWNER' }
+  next()
 }

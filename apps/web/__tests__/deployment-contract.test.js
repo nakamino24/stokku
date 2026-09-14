@@ -33,7 +33,8 @@ describe('zero-cost deployment contract', () => {
     expect(packageJson.scripts['migrate:deploy']).toContain('prisma migrate deploy')
     expect(render).not.toMatch(/^databases:/m)
     expect(render).not.toMatch(/disk:|type: worker|type: cron|type: pserv/)
-    expect(render).not.toMatch(/key:\s*NODE_ENV/)
+    expect(render).toMatch(/key:\s*NODE_ENV/)
+    expect(render).toMatch(/key:\s*EMAIL_OUTBOX_ENCRYPTION_KEY/)
   })
 
   it('has no active Fly deployment configuration', () => {

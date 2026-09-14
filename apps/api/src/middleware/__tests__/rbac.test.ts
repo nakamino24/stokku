@@ -1,40 +1,43 @@
-import { Request, Response } from 'express';
-import { requirePermission } from '../rbac';
+import { Request, Response } from 'express'
+import { requirePermission } from '../rbac'
 
 jest.mock('@stokku/database', () => ({
   prisma: {
-    organizationMember: { findUnique: jest.fn() },
+    organizationMember: { findFirst: jest.fn() },
     role: { findFirst: jest.fn() },
   },
-}));
+}))
 
-const { prisma: mockPrisma } = jest.requireMock('@stokku/database');
+const { prisma: mockPrisma } = jest.requireMock('@stokku/database')
 
 function request(role = 'VIEWER'): Request {
   return {
     user: { id: 'user-1', organizationId: 'org-1', role },
-  } as unknown as Request;
+  } as unknown as Request
 }
 
 describe('action permissions', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => jest.clearAllMocks())
 
   it('uses membership as authority instead of a stale ADMIN token', async () => {
-    mockPrisma.organizationMember.findUnique.mockResolvedValue({ role: 'VIEWER', assignedRole: null });
-    mockPrisma.role.findFirst.mockResolvedValue(null);
-    const next = jest.fn();
-    await requirePermission('inventory.adjust.approve')(request('ADMIN'), {} as Response, next);
-    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
-  });
+    mockPrisma.organizationMember.findFirst.mockResolvedValue({
+      role: 'VIEWER',
+      assignedRole: null,
+    })
+    mockPrisma.role.findFirst.mockResolvedValue(null)
+    const next = jest.fn()
+    await requirePermission('inventory.adjust.approve')(request('ADMIN'), {} as Response, next)
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }))
+  })
 
   it('accepts an explicitly assigned custom-role permission', async () => {
-    mockPrisma.organizationMember.findUnique.mockResolvedValue({
+    mockPrisma.organizationMember.findFirst.mockResolvedValue({
       role: 'VIEWER',
       assignedRole: { permissions: [{ permission: 'inventory.adjust.approve' }] },
-    });
-    const next = jest.fn();
-    await requirePermission('inventory.adjust.approve')(request(), {} as Response, next);
-    expect(next).toHaveBeenCalledWith();
-    expect(mockPrisma.role.findFirst).not.toHaveBeenCalled();
-  });
-});
+    })
+    const next = jest.fn()
+    await requirePermission('inventory.adjust.approve')(request(), {} as Response, next)
+    expect(next).toHaveBeenCalledWith()
+    expect(mockPrisma.role.findFirst).not.toHaveBeenCalled()
+  })
+})

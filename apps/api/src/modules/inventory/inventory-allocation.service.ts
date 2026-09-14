@@ -7,6 +7,7 @@ interface AllocationCommand {
   userId: string;
   salesOrderId: string;
   reference: string;
+  warehouseIds?: string[];
 }
 
 export const InventoryAllocationService = {
@@ -32,6 +33,7 @@ export const InventoryAllocationService = {
           variantId: item.variantId ?? null,
           inventoryStatus: 'AVAILABLE',
           available: { gt: 0 },
+          warehouseId: command.warehouseIds ? { in: command.warehouseIds } : undefined,
         },
         orderBy: [{ warehouseId: 'asc' }, { binId: 'asc' }, { createdAt: 'asc' }],
       });

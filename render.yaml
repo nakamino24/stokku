@@ -17,6 +17,9 @@ services:
       - key: NODE_VERSION
         value: 22.22.0
 
+      - key: NODE_ENV
+        value: production
+
       - key: DATABASE_URL
         sync: false
 
@@ -31,6 +34,15 @@ services:
 
       - key: APP_URL
         sync: false
+
+      - key: RESEND_API_KEY
+        sync: false
+
+      - key: EMAIL_FROM
+        sync: false
+
+      - key: EMAIL_OUTBOX_ENCRYPTION_KEY
+        generateValue: true
 
       - key: LOG_LEVEL
         value: info

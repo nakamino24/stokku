@@ -1,10 +1,13 @@
 import { Prisma, prisma } from '@stokku/database';
 import { parsePagination, paginatedResult } from '../../utils/pagination';
+import { getWarehouseScope, warehouseIdFilter } from '../../middleware/warehouseScope';
 
 export const ReportsService = {
-  async stockValue(orgId: string) {
+  async stockValue(orgId: string, userId: string) {
+    const scope = await getWarehouseScope(prisma, orgId, userId);
+    const stockScope = warehouseIdFilter(scope);
     const stockLevels = await prisma.stockLevel.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: orgId, ...(stockScope ? { warehouseId: stockScope } : {}) },
       include: { product: { select: { name: true, costPrice: true, unitPrice: true } }, warehouse: { select: { name: true } } },
     });
 
@@ -33,8 +36,10 @@ export const ReportsService = {
     };
   },
 
-  async stockMovement(orgId: string, startDate?: string, endDate?: string) {
-    const where: Prisma.StockMovementWhereInput = { organizationId: orgId };
+  async stockMovement(orgId: string, userId: string, startDate?: string, endDate?: string) {
+    const scope = await getWarehouseScope(prisma, orgId, userId);
+    const stockScope = warehouseIdFilter(scope);
+    const where: Prisma.StockMovementWhereInput = { organizationId: orgId, ...(stockScope ? { warehouseId: stockScope } : {}) };
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
@@ -59,8 +64,13 @@ export const ReportsService = {
     };
   },
 
-  async sales(orgId: string, startDate?: string, endDate?: string) {
+  async sales(orgId: string, userId: string, startDate?: string, endDate?: string) {
+    const scope = await getWarehouseScope(prisma, orgId, userId);
+    const stockScope = warehouseIdFilter(scope);
     const where: Prisma.SalesOrderWhereInput = { organizationId: orgId, status: 'DELIVERED' };
+    if (stockScope) {
+      where.items = { some: { allocations: { some: { stockLevel: { warehouseId: stockScope } } } } };
+    }
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
@@ -84,11 +94,16 @@ export const ReportsService = {
     };
   },
 
-  async purchasing(orgId: string, startDate?: string, endDate?: string) {
+  async purchasing(orgId: string, userId: string, startDate?: string, endDate?: string) {
+    const scope = await getWarehouseScope(prisma, orgId, userId);
+    const stockScope = warehouseIdFilter(scope);
     const where: Prisma.PurchaseOrderWhereInput = {
       organizationId: orgId,
       status: { in: ['RECEIVED', 'PARTIALLY_RECEIVED'] },
     };
+    if (stockScope) {
+      where.goodsReceipts = { some: { warehouseId: stockScope } };
+    }
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
@@ -105,12 +120,14 @@ export const ReportsService = {
     return { totalOrders: orders.length, totalSpent: totalSpent.toString(), orders };
   },
 
-  async inventoryValuation(orgId: string) {
+  async inventoryValuation(orgId: string, userId: string) {
+    const scope = await getWarehouseScope(prisma, orgId, userId);
+    const stockScope = warehouseIdFilter(scope);
     const products = await prisma.product.findMany({
       where: { organizationId: orgId, isActive: true },
       include: {
         variants: true,
-        stockLevels: { include: { warehouse: { select: { name: true } } } },
+        stockLevels: { where: stockScope ? { warehouseId: stockScope } : undefined, include: { warehouse: { select: { name: true } } } },
       },
     });
 

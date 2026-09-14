@@ -13,13 +13,13 @@ router.use(authMiddleware);
 
 router.get('/', requirePermission('so.read'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const user = req.user!;
-  const result = await SalesOrderService.list(user.organizationId, req.query as Record<string, unknown>);
+  const result = await SalesOrderService.list(user.organizationId, user.id, req.query as Record<string, unknown>);
   res.json(result);
 }));
 
 router.get('/:id', requirePermission('so.read'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const user = req.user!;
-  const result = await SalesOrderService.getById(user.organizationId, req.params.id);
+  const result = await SalesOrderService.getById(user.organizationId, user.id, req.params.id);
   res.json(result);
 }));
 
