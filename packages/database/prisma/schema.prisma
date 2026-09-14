@@ -76,6 +76,16 @@ enum InventoryAllocationStatus {
   FULFILLED
 }
 
+enum FulfillmentTaskStatus {
+  READY
+  CLAIMED
+  PICKED
+  PACKING_CLAIMED
+  PACKED
+  SHORTED
+  EXCEPTION
+}
+
 enum GoodsReceiptStatus {
   POSTED
   REVERSED
@@ -180,6 +190,7 @@ model User {
   createdPurchaseOrders PurchaseOrder[] @relation("poCreatedBy")
   createdSalesOrders    SalesOrder[]    @relation("soCreatedBy")
   postedShipments       Shipment[]      @relation("shipmentPostedBy")
+  claimedAllocations    InventoryAllocation[] @relation("allocationClaimedBy")
   auditLogs             AuditLog[]
   organizationMembers   OrganizationMember[]
   refreshSessions       RefreshSession[]
@@ -679,9 +690,19 @@ model InventoryAllocation {
   stockLevel       StockLevel                @relation(fields: [stockLevelId], references: [id])
   quantity         Decimal                   @db.Decimal(18, 6)
   status           InventoryAllocationStatus @default(ACTIVE)
+  executionStatus  FulfillmentTaskStatus    @default(READY)
   idempotencyKey   String
   createdById      String
   createdBy        User                      @relation("allocationCreatedBy", fields: [createdById], references: [id])
+  claimedById      String?
+  claimedBy        User?                     @relation("allocationClaimedBy", fields: [claimedById], references: [id])
+  claimedAt        DateTime?
+  pickedQty        Decimal?
+  packedQty        Decimal?
+  shortQty         Decimal?
+  exceptionReason  String?
+  pickedAt         DateTime?
+  packedAt         DateTime?
   createdAt        DateTime                  @default(now())
   releasedAt       DateTime?
   fulfilledAt      DateTime?
@@ -689,6 +710,7 @@ model InventoryAllocation {
   @@unique([organizationId, idempotencyKey])
   @@unique([salesOrderItemId, stockLevelId])
   @@index([organizationId, status])
+  @@index([organizationId, executionStatus])
   @@index([salesOrderId])
   @@index([stockLevelId])
 }

@@ -12,6 +12,7 @@ interface PackTask {
   productId: string;
   variantId?: string | null;
   quantity: string;
+  pickedQty?: string | null;
   salesOrderId: string;
   salesOrderItemId: string;
   product?: { name: string; sku?: string };
@@ -59,10 +60,10 @@ export default function PackingPage() {
     }
   };
 
-  const complete = async (id: string) => {
+  const complete = async (id: string, quantity: string) => {
     setActionError(null);
     try {
-      await api.post(`/packing/${id}/complete`, { packedQty: '1', cartons: 1 });
+      await api.post(`/packing/${id}/complete`, { packedQty: quantity, cartons: 1 });
       await mutate();
       setFeedback('Packing complete.');
       setSelectedId(null);
@@ -178,7 +179,7 @@ export default function PackingPage() {
               )}
               {selected.status === 'CLAIMED' && (
                 <>
-                  <Button size="sm" onClick={() => void complete(selected.id)}>PACKED</Button>
+                  <Button size="sm" onClick={() => void complete(selected.id, selected.pickedQty || selected.quantity)}>PACKED</Button>
                   <Button size="sm" variant="ghost" onClick={() => void exception(selected.id)}><FiAlertTriangle className="mr-2" />EXCEPTION</Button>
                 </>
               )}

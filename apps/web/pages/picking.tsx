@@ -59,10 +59,10 @@ export default function PickingPage() {
     }
   };
 
-  const confirm = async (id: string) => {
+  const confirm = async (id: string, quantity: string) => {
     setActionError(null);
     try {
-      await api.post(`/picking/${id}/confirm`, { pickedQty: '1' });
+      await api.post(`/picking/${id}/confirm`, { pickedQty: quantity });
       await mutate();
       setFeedback('Pick confirmation recorded.');
       setSelectedId(null);
@@ -71,10 +71,10 @@ export default function PickingPage() {
     }
   };
 
-  const shortPick = async (id: string) => {
+  const shortPick = async (id: string, quantity: string) => {
     setActionError(null);
     try {
-      await api.post(`/picking/${id}/short`, { shortQty: '1', reason: 'Inventory shortfall' });
+      await api.post(`/picking/${id}/short`, { shortQty: quantity, reason: 'Inventory shortfall' });
       await mutate();
       setFeedback('Short pick recorded.');
       setSelectedId(null);
@@ -178,8 +178,8 @@ export default function PickingPage() {
               )}
               {selected.status === 'CLAIMED' && (
                 <>
-                  <Button size="sm" onClick={() => void confirm(selected.id)}>PICKED</Button>
-                  <Button size="sm" variant="ghost" onClick={() => void shortPick(selected.id)}><FiAlertTriangle className="mr-2" />SHORT</Button>
+                  <Button size="sm" onClick={() => void confirm(selected.id, selected.quantity)}>PICKED</Button>
+                  <Button size="sm" variant="ghost" onClick={() => void shortPick(selected.id, selected.quantity)}><FiAlertTriangle className="mr-2" />SHORT</Button>
                 </>
               )}
               <Button size="sm" variant="ghost" onClick={() => setSelectedId(null)}>Close</Button>

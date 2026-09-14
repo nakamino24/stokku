@@ -5,6 +5,8 @@ import { ProductService } from '../../products/products.service';
 import { SalesOrderService } from '../../sales-orders/sales-orders.service';
 import { StockService } from '../../stock/stock.service';
 import { ShipmentService } from '../../shipment/shipment.service';
+import { PickingService } from '../../picking/picking.service';
+import { PackingService } from '../../packing/packing.service';
 
 jest.setTimeout(45_000);
 
@@ -211,6 +213,29 @@ describeIfDatabase('WMS inventory core (PostgreSQL)', () => {
     expect(await prisma.shipment.count({ where: { salesOrderId: order.id } })).toBe(1);
     expect(await prisma.salesOrder.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: 'SHIPPED' });
     expect(await prisma.stockMovement.count({ where: { sourceDocumentId: order.id, type: 'SHIPMENT' } })).toBeGreaterThan(0);
+  });
+
+  test('picking and packing persist operator state before shipment', async () => {
+    const order = await SalesOrderService.create(ids.organization, ids.user, {
+      customerId: ids.customer,
+      items: [{ productId: ids.product, quantity: '1.5', unitPrice: '4.25' }],
+    });
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'CONFIRMED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'ALLOCATED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'PICKING');
+    const allocation = await prisma.inventoryAllocation.findFirstOrThrow({ where: { salesOrderId: order.id } });
+
+    const claimedPick = await PickingService.claim(ids.organization, ids.user, allocation.id);
+    expect(claimedPick.status).toBe('CLAIMED');
+    const picked = await PickingService.confirm(ids.organization, ids.user, allocation.id, { pickedQty: '1.5' });
+    expect(picked.status).toBe('PICKED');
+
+    const claimedPack = await PackingService.claim(ids.organization, ids.user, allocation.id);
+    expect(claimedPack.status).toBe('CLAIMED');
+    const packed = await PackingService.complete(ids.organization, ids.user, allocation.id, { packedQty: '1.5', cartons: 1 });
+    expect(packed.status).toBe('PACKED');
+    expect(await prisma.inventoryAllocation.findUniqueOrThrow({ where: { id: allocation.id } })).toMatchObject({ executionStatus: 'PACKED' });
+    expect(await prisma.salesOrder.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: 'PACKED' });
   });
 
   test('two concurrent orders cannot both allocate the last unit', async () => {
