@@ -11,7 +11,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <div className="w-60 flex-shrink-0 bg-white border-r border-gray-200 fixed top-0 left-0 bottom-0 overflow-y-auto z-30">
+      <div className="w-60 shrink-0 bg-white border-r border-gray-200 fixed top-0 left-0 bottom-0 overflow-y-auto z-30">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       </div>
       <div className="flex-1 min-h-screen lg:ml-60">

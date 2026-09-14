@@ -82,7 +82,7 @@ export const ShipmentService = {
 
   async voidShipment(orgId: string, userId: string, id: string, data: { reason: string; note?: string }) {
     const order = await prisma.salesOrder.findFirst({
-      where: { id, organizationId: orgId, status: 'POSTED' },
+      where: { id, organizationId: orgId, status: 'SHIPPED' },
       include: { items: { include: { allocations: { include: { stockLevel: true } } } } },
     });
 

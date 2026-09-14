@@ -8,6 +8,16 @@ const router = Router()
 router.use(authMiddleware)
 
 router.get(
+  '/',
+  requirePermission('dashboard.read'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user
+    const result = await DashboardService.getSummary(user.organizationId, user.id)
+    res.json(result)
+  })
+)
+
+router.get(
   '/summary',
   requirePermission('dashboard.read'),
   asyncHandler(async (req: Request, res: Response) => {
