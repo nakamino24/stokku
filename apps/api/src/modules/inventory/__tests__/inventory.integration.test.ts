@@ -4,6 +4,7 @@ import { PurchaseOrderService } from '../../purchase-orders/purchase-orders.serv
 import { ProductService } from '../../products/products.service';
 import { SalesOrderService } from '../../sales-orders/sales-orders.service';
 import { StockService } from '../../stock/stock.service';
+import { ShipmentService } from '../../shipment/shipment.service';
 
 jest.setTimeout(45_000);
 
@@ -184,6 +185,32 @@ describeIfDatabase('WMS inventory core (PostgreSQL)', () => {
     expect(await prisma.stockMovement.count({
       where: { organizationId: ids.organization, sourceDocumentId: draft.id, type: 'SHIPMENT' },
     })).toBeGreaterThan(0);
+  });
+
+  test('shipment command persists tracking data and is retry-safe', async () => {
+    const order = await SalesOrderService.create(ids.organization, ids.user, {
+      customerId: ids.customer,
+      items: [{ productId: ids.product, quantity: '2.5', unitPrice: '4.25' }],
+    });
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'CONFIRMED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'ALLOCATED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'PICKING');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'PICKED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'PACKED');
+
+    const input = {
+      trackingNumber: `TRACK-${suffix}`,
+      carrier: 'UPS',
+      idempotencyKey: `shipment-${suffix}`,
+    };
+    const first = await ShipmentService.post(ids.organization, ids.user, order.id, input);
+    const duplicate = await ShipmentService.post(ids.organization, ids.user, order.id, input);
+
+    expect(first.id).toBe(duplicate.id);
+    expect(first.trackingNumber).toBe(input.trackingNumber);
+    expect(await prisma.shipment.count({ where: { salesOrderId: order.id } })).toBe(1);
+    expect(await prisma.salesOrder.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: 'SHIPPED' });
+    expect(await prisma.stockMovement.count({ where: { sourceDocumentId: order.id, type: 'SHIPMENT' } })).toBeGreaterThan(0);
   });
 
   test('two concurrent orders cannot both allocate the last unit', async () => {

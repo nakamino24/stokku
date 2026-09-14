@@ -35,6 +35,7 @@ describe('Shipment API', () => {
 
     const response = await request(app)
       .post(`/api/v1/shipment/${UUID}/post`)
+      .set('Idempotency-Key', 'shipment-test-001')
       .send({ trackingNumber: 'UPS-1024', carrier: 'UPS', note: 'Left at front desk' });
 
     expect(response.status).toBe(200);
@@ -42,6 +43,16 @@ describe('Shipment API', () => {
       trackingNumber: 'UPS-1024',
       carrier: 'UPS',
       note: 'Left at front desk',
+      idempotencyKey: 'shipment-test-001',
     }));
+  });
+
+  it('requires an idempotency key when posting a shipment', async () => {
+    const response = await request(app)
+      .post(`/api/v1/shipment/${UUID}/post`)
+      .send({ trackingNumber: 'UPS-1024', carrier: 'UPS' });
+
+    expect(response.status).toBe(400);
+    expect(mockService.post).not.toHaveBeenCalled();
   });
 });

@@ -81,6 +81,11 @@ enum GoodsReceiptStatus {
   REVERSED
 }
 
+enum ShipmentStatus {
+  POSTED
+  VOIDED
+}
+
 enum AdjustmentReasonCode {
   DAMAGE
   SHRINKAGE
@@ -139,6 +144,7 @@ model Organization {
   documentSequences DocumentSequence[]
   purchaseOrders PurchaseOrder[]
   salesOrders    SalesOrder[]
+  shipments      Shipment[]
   users           User[]
   roles           Role[]
   auditLogs       AuditLog[]
@@ -173,6 +179,7 @@ model User {
   receivedGoodsReceipts GoodsReceipt[] @relation("goodsReceiptReceivedBy")
   createdPurchaseOrders PurchaseOrder[] @relation("poCreatedBy")
   createdSalesOrders    SalesOrder[]    @relation("soCreatedBy")
+  postedShipments       Shipment[]      @relation("shipmentPostedBy")
   auditLogs             AuditLog[]
   organizationMembers   OrganizationMember[]
   refreshSessions       RefreshSession[]
@@ -633,6 +640,7 @@ model SalesOrder {
 
   items SalesOrderItem[]
   allocations InventoryAllocation[]
+  shipment Shipment?
 
   @@unique([organizationId, soNumber])
   @@index([organizationId])
@@ -683,6 +691,29 @@ model InventoryAllocation {
   @@index([organizationId, status])
   @@index([salesOrderId])
   @@index([stockLevelId])
+}
+
+model Shipment {
+  id              String         @id @default(uuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salesOrderId    String         @unique
+  salesOrder      SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  status          ShipmentStatus @default(POSTED)
+  trackingNumber  String
+  carrier         String
+  note            String?
+  idempotencyKey  String
+  postedById      String
+  postedBy        User           @relation("shipmentPostedBy", fields: [postedById], references: [id])
+  postedAt        DateTime       @default(now())
+  voidedAt        DateTime?
+  voidReason      String?
+
+  @@unique([organizationId, salesOrderId])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status])
+  @@index([salesOrderId])
 }
 
 model GoodsReceipt {

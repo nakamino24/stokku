@@ -31,6 +31,8 @@ export default function ShipmentPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [carrier, setCarrier] = useState('');
 
   const params = new URLSearchParams({ page: String(page), limit: '20' });
   if (statusFilter) params.set('status', statusFilter);
@@ -44,11 +46,18 @@ export default function ShipmentPage() {
 
   const post = async (id: string) => {
     setActionError(null);
+    if (!trackingNumber.trim() || !carrier.trim()) {
+      setActionError('Tracking number and carrier are required.');
+      return;
+    }
     try {
-      await api.post(`/shipment/${id}/post`, { trackingNumber: 'TRK-10001', carrier: 'UPS' });
+      const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${id}-${Date.now()}`;
+      await api.post(`/shipment/${id}/post`, { trackingNumber: trackingNumber.trim(), carrier: carrier.trim() }, { 'Idempotency-Key': idempotencyKey });
       await mutate();
       setFeedback('Shipment posted.');
       setSelectedId(null);
+      setTrackingNumber('');
+      setCarrier('');
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Unable to post shipment.');
     }
@@ -57,7 +66,8 @@ export default function ShipmentPage() {
   const voidShipment = async (id: string) => {
     setActionError(null);
     try {
-      await api.post(`/shipment/${id}/void`, { reason: 'Customer requested cancellation' });
+      const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${id}-void-${Date.now()}`;
+      await api.post(`/shipment/${id}/void`, { reason: 'Customer requested cancellation' }, { 'Idempotency-Key': idempotencyKey });
       await mutate();
       setFeedback('Shipment voided.');
       setSelectedId(null);
@@ -152,6 +162,13 @@ export default function ShipmentPage() {
               <div><span className="text-gray-500">Warehouse</span><p className="font-medium">{selected.warehouse?.name || selected.warehouseId}</p></div>
               <div><span className="text-gray-500">Tracking</span><p className="font-medium">{selected.trackingNumber || 'Not posted'}</p></div>
             </div>
+
+            {selected.status === 'READY' && (
+              <div className="grid gap-3 sm:grid-cols-2 mt-5">
+                <label className="text-sm text-gray-600">Tracking number<input aria-label="Tracking number" value={trackingNumber} onChange={(event) => setTrackingNumber(event.target.value)} className="field mt-1 w-full" placeholder="e.g. 1Z..." /></label>
+                <label className="text-sm text-gray-600">Carrier<input aria-label="Carrier" value={carrier} onChange={(event) => setCarrier(event.target.value)} className="field mt-1 w-full" placeholder="e.g. UPS" /></label>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2 mt-6">
               {selected.status === 'READY' && (
