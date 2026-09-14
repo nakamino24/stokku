@@ -3,7 +3,8 @@ import { useRouter } from 'next/router';
 import {
   FiHome, FiPackage, FiGrid, FiTruck, FiArchive, FiShoppingCart,
   FiDollarSign, FiUsers, FiBarChart2, FiSettings, FiLogOut,
-  FiLayers, FiUserCheck, FiFileText, FiX, FiMenu,
+  FiLayers, FiUserCheck, FiFileText, FiX, FiMenu, FiArrowLeftCircle,
+  FiClipboard, FiBox, FiSend, FiInbox,
 } from 'react-icons/fi';
 import { clearTokens } from '../../utils/api';
 
@@ -18,6 +19,12 @@ const navigation = [
   ]},
   { section: 'Warehouses', items: [
     { href: '/warehouses', label: 'Warehouses', icon: FiArchive },
+    { href: '/receiving', label: 'Receiving', icon: FiInbox },
+    { href: '/putaway', label: 'Putaway', icon: FiPackage },
+    { href: '/picking', label: 'Picking', icon: FiBox },
+    { href: '/packing', label: 'Packing', icon: FiPackage },
+    { href: '/shipment', label: 'Shipment', icon: FiSend },
+    { href: '/cycle-counts', label: 'Cycle Counts', icon: FiClipboard },
   ]},
   { section: 'Purchasing', items: [
     { href: '/purchase-orders', label: 'Purchase Orders', icon: FiShoppingCart },
@@ -25,6 +32,7 @@ const navigation = [
   ]},
   { section: 'Sales', items: [
     { href: '/sales-orders', label: 'Sales Orders', icon: FiFileText },
+    { href: '/returns', label: 'Returns', icon: FiArrowLeftCircle },
     { href: '/customers', label: 'Customers', icon: FiUserCheck },
   ]},
   { section: 'Reports', items: [
@@ -67,20 +75,20 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       <nav className={`
         flex flex-col h-full p-4 gap-1
         fixed lg:static inset-y-0 left-0 z-50 w-60
-        bg-white border-r border-gray-200
+        bg-(--bg-card) border-r border-(--border)
         transition-transform duration-200
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
       <div className="flex items-center gap-3 px-3 py-2 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-500/30">
           S
         </div>
-        <span className="text-lg font-bold text-gray-900">Stokku</span>
+        <span className="text-lg font-bold text-(--text-primary)">Stokku</span>
       </div>
 
       {navigation.map((group) => (
         <div key={group.section}>
-          <div className="text-[0.65rem] font-semibold uppercase tracking-widest text-gray-400 px-3 py-1.5 mt-2">
+          <div className="text-[0.65rem] font-semibold uppercase tracking-widest text-(--text-muted) px-3 py-1.5 mt-2">
             {group.section}
           </div>
           {group.items.map((item) => {
@@ -92,8 +100,8 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
                   active
-                    ? 'bg-indigo-50 text-indigo-600'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-(--bg-accent) text-indigo-600'
+                    : 'text-(--text-secondary) hover:bg-(--bg-card-muted) hover:text-(--text-primary)'
                 }`}
               >
                 <Icon size={17} />
@@ -108,7 +116,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
       <button
         onClick={handleLogout}
-        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-all duration-150 w-full text-left"
+        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-150 w-full text-left"
       >
         <FiLogOut size={17} />
         Logout

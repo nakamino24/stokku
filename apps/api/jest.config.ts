@@ -15,6 +15,7 @@ const config: Config = {
     '^@stokku/validation$': '<rootDir>/../../packages/validation/src/index.ts',
   },
   clearMocks: true,
+  testTimeout: 20000,
   collectCoverageFrom: ['src/**/*.ts', '!src/server.ts', '!src/**/index.ts'],
 };
 

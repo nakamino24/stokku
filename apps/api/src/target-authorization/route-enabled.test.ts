@@ -16,7 +16,7 @@ describe('target authorization parity route (enabled)', () => {
   });
 
   it('mounts the route and requires authentication', async () => {
-    const { default: app } = await import('../app');
+    const { default: app } = require('../app');
     const response = await request(app)
       .post('/api/v1/_parity/authorization/check')
       .send({ organizationId: '00000000-0000-4000-8000-000000000001', permission: 'inventory.read' });
@@ -26,7 +26,7 @@ describe('target authorization parity route (enabled)', () => {
   });
 
   it('does not fall through to the 404 catch-all when enabled', async () => {
-    const { default: app } = await import('../app');
+    const { default: app } = require('../app');
     const response = await request(app).post('/api/v1/_parity/authorization/check').send({});
 
     expect(response.status).toBe(401);
