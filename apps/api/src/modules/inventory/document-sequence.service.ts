@@ -7,6 +7,7 @@ const PREFIX: Record<DocumentType, string> = {
   GOODS_RECEIPT: 'GRN',
   STOCK_TRANSFER: 'TR',
   STOCK_ADJUSTMENT: 'ADJ',
+  RECONCILIATION: 'RECON',
 };
 
 export const DocumentSequenceService = {

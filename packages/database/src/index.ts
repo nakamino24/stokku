@@ -65,6 +65,8 @@ export {
   PutawayTaskStatus,
   ReturnDisposition,
   ReturnStatus,
+  ReconciliationRunStatus,
+  DiscrepancyResolution,
   AdjustmentReasonCode,
   DocumentType,
   PurchaseOrderStatus,
