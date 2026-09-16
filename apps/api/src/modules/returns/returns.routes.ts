@@ -6,6 +6,7 @@ import { requirePermission } from '../../middleware/rbac';
 import { ReturnsService } from './returns.service';
 import { approveReturnSchema, completeReturnSchema, createReturnSchema } from './returns.schema';
 import { AuthRequest } from '../../utils/types';
+import { requireIdempotencyKey } from '../../utils/idempotency';
 
 const router = Router();
 
@@ -31,7 +32,10 @@ router.post('/:id/approve', requirePermission('inventory.adjust.approve'), valid
 
 router.post('/:id/complete', requirePermission('inventory.adjust.approve'), validate({ body: completeReturnSchema }), asyncHandler(async (req: AuthRequest, res: Response) => {
   const user = req.user!;
-  const result = await ReturnsService.complete(user.organizationId, user.id, req.params.id, req.body);
+  const result = await ReturnsService.complete(user.organizationId, user.id, req.params.id, {
+    ...req.body,
+    idempotencyKey: requireIdempotencyKey(req),
+  });
   res.json(result);
 }));
 

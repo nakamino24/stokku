@@ -162,6 +162,7 @@ model Organization {
   purchaseOrders PurchaseOrder[]
   salesOrders    SalesOrder[]
   shipments      Shipment[]
+  returnRequests ReturnRequest[]
   users           User[]
   roles           Role[]
   auditLogs       AuditLog[]
@@ -199,6 +200,9 @@ model User {
   postedShipments       Shipment[]      @relation("shipmentPostedBy")
   claimedAllocations    InventoryAllocation[] @relation("allocationClaimedBy")
   claimedPutawayLines    GoodsReceiptLine[] @relation("putawayClaimedBy")
+  approvedReturns       ReturnRequest[] @relation("returnApprovedBy")
+  completedReturns      ReturnRequest[] @relation("returnCompletedBy")
+  createdReturns        ReturnRequest[] @relation("returnCreatedBy")
   auditLogs             AuditLog[]
   organizationMembers   OrganizationMember[]
   refreshSessions       RefreshSession[]
@@ -447,6 +451,7 @@ model Warehouse {
   fromMovements StockMovement[] @relation("fromWarehouse")
   toMovements   StockMovement[] @relation("toWarehouse")
   goodsReceipts GoodsReceipt[]
+  returnRequests ReturnRequest[]
   memberAssignments OrganizationMemberWarehouse[] @relation("WarehouseMemberAssignments")
 
   @@unique([organizationId, code])
@@ -661,6 +666,7 @@ model SalesOrder {
   items SalesOrderItem[]
   allocations InventoryAllocation[]
   shipment Shipment?
+  returnRequests ReturnRequest[]
 
   @@unique([organizationId, soNumber])
   @@index([organizationId])
@@ -901,4 +907,47 @@ model EmailOutboxMessage {
 
   @@index([status, availableAt])
   @@index([userId, kind, createdAt])
+}
+
+enum ReturnDisposition {
+  RESTOCK
+  DISCARD
+  REWORK
+}
+
+enum ReturnStatus {
+  OPEN
+  APPROVED
+  COMPLETED
+  REJECTED
+}
+
+model ReturnRequest {
+  id              String          @id @default(uuid())
+  organizationId  String
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salesOrderId    String
+  salesOrder      SalesOrder      @relation(fields: [salesOrderId], references: [id])
+  warehouseId     String
+  warehouse       Warehouse       @relation(fields: [warehouseId], references: [id])
+  reason          String
+  quantity        Decimal         @db.Decimal(18, 6)
+  note            String?
+  status          ReturnStatus    @default(OPEN)
+  disposition     ReturnDisposition?
+  approvedById    String?
+  approvedBy      User?           @relation("returnApprovedBy", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  completedById   String?
+  completedBy     User?           @relation("returnCompletedBy", fields: [completedById], references: [id])
+  completedAt     DateTime?
+  createdById     String
+  createdBy       User            @relation("returnCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([organizationId])
+  @@index([salesOrderId])
+  @@index([warehouseId])
+  @@index([status])
 }
