@@ -62,6 +62,7 @@ export {
   FulfillmentTaskStatus,
   GoodsReceiptStatus,
   ShipmentStatus,
+  PutawayTaskStatus,
   AdjustmentReasonCode,
   DocumentType,
   PurchaseOrderStatus,

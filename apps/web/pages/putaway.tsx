@@ -19,6 +19,8 @@ interface PutawayTask {
   createdAt?: string;
 }
 
+interface WarehouseBin { id: string; code: string; zone?: { name: string } }
+
 interface Paginated<T> { data: T[]; pagination: { page: number; totalPages: number; hasNext: boolean; hasPrev: boolean } }
 
 const fetcher = <T,>(url: string) => api.get<T>(url);
@@ -36,6 +38,8 @@ export default function PutawayPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [destinationBinId, setDestinationBinId] = useState('');
+  const [exceptionReason, setExceptionReason] = useState('');
 
   const params = new URLSearchParams({ page: String(page), limit: '20' });
   if (statusFilter) params.set('status', statusFilter);
@@ -45,6 +49,7 @@ export default function PutawayPage() {
     () => data?.data.find((item) => item.id === selectedId) ?? null,
     [data, selectedId]
   );
+  const { data: bins } = useSWR<WarehouseBin[]>(selected ? `/warehouses/${selected.warehouseId}/bins` : null, fetcher);
 
   const claim = async (id: string) => {
     setActionError(null);
@@ -60,11 +65,16 @@ export default function PutawayPage() {
 
   const complete = async (id: string) => {
     setActionError(null);
+    if (!destinationBinId) {
+      setActionError('Choose a destination bin before completing putaway.');
+      return;
+    }
     try {
-      await api.post(`/putaway/${id}/complete`, { destinationBinId: '00000000-0000-0000-0000-000000000001', note: 'Putaway completed' });
+      await api.post(`/putaway/${id}/complete`, { destinationBinId, note: 'Putaway completed' });
       await mutate();
       setFeedback('Putaway completed.');
       setSelectedId(null);
+      setDestinationBinId('');
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Unable to complete putaway.');
     }
@@ -72,11 +82,16 @@ export default function PutawayPage() {
 
   const exception = async (id: string) => {
     setActionError(null);
+    if (!exceptionReason.trim()) {
+      setActionError('Enter a reason for the putaway exception.');
+      return;
+    }
     try {
-      await api.post(`/putaway/${id}/exception`, { reason: 'Damaged packaging' });
+      await api.post(`/putaway/${id}/exception`, { reason: exceptionReason.trim() });
       await mutate();
       setFeedback('Putaway exception raised.');
       setSelectedId(null);
+      setExceptionReason('');
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Unable to raise exception.');
     }
@@ -170,6 +185,13 @@ export default function PutawayPage() {
               <div><span className="text-gray-500">From bin</span><p className="font-medium">{selected.sourceBinId || 'Receiving dock'}</p></div>
               <div><span className="text-gray-500">Receipt</span><p className="font-medium">{selected.receiptId}</p></div>
             </div>
+
+            {selected.status === 'CLAIMED' && (
+              <div className="grid gap-3 mt-5 sm:grid-cols-2">
+                <label className="text-sm text-gray-600">Destination bin<select aria-label="Destination bin" value={destinationBinId} onChange={(event) => setDestinationBinId(event.target.value)} className="field mt-1 w-full"><option value="">Select destination bin</option>{bins?.map((bin) => <option key={bin.id} value={bin.id}>{bin.code}{bin.zone?.name ? ` · ${bin.zone.name}` : ''}</option>)}</select></label>
+                <label className="text-sm text-gray-600">Exception reason<input aria-label="Exception reason" value={exceptionReason} onChange={(event) => setExceptionReason(event.target.value)} className="field mt-1 w-full" placeholder="Explain the issue" /></label>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2 mt-6">
               {selected.status === 'READY' && (

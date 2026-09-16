@@ -86,6 +86,13 @@ enum FulfillmentTaskStatus {
   EXCEPTION
 }
 
+enum PutawayTaskStatus {
+  READY
+  CLAIMED
+  COMPLETED
+  EXCEPTION
+}
+
 enum GoodsReceiptStatus {
   POSTED
   REVERSED
@@ -191,6 +198,7 @@ model User {
   createdSalesOrders    SalesOrder[]    @relation("soCreatedBy")
   postedShipments       Shipment[]      @relation("shipmentPostedBy")
   claimedAllocations    InventoryAllocation[] @relation("allocationClaimedBy")
+  claimedPutawayLines    GoodsReceiptLine[] @relation("putawayClaimedBy")
   auditLogs             AuditLog[]
   organizationMembers   OrganizationMember[]
   refreshSessions       RefreshSession[]
@@ -474,6 +482,7 @@ model WarehouseBin {
 
   stockLevels StockLevel[]
   goodsReceipts GoodsReceipt[]
+  putawayDestinations GoodsReceiptLine[] @relation("putawayDestination")
 
   @@unique([zoneId, code])
   @@index([zoneId])
@@ -782,11 +791,20 @@ model GoodsReceiptLine {
   receivedQty         Decimal           @db.Decimal(18, 6)
   acceptedQty         Decimal           @db.Decimal(18, 6)
   rejectedQty         Decimal           @default(0) @db.Decimal(18, 6)
+  taskStatus          PutawayTaskStatus  @default(READY)
+  claimedById         String?
+  claimedBy           User?             @relation("putawayClaimedBy", fields: [claimedById], references: [id])
+  claimedAt           DateTime?
+  destinationBinId    String?
+  destinationBin      WarehouseBin?      @relation("putawayDestination", fields: [destinationBinId], references: [id])
+  completedAt         DateTime?
+  exceptionReason     String?
   createdAt           DateTime          @default(now())
 
   @@unique([goodsReceiptId, purchaseOrderItemId])
   @@index([purchaseOrderItemId])
   @@index([productId])
+  @@index([taskStatus])
 }
 
 model DocumentSequence {
