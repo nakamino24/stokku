@@ -8,6 +8,7 @@ import {
 import { validateInventoryIdentity } from '../inventory/inventory-validation';
 import { AppError } from '../../utils/errors';
 import { parsePagination, paginatedResult } from '../../utils/pagination';
+import { assertWarehouseAccess } from '../../middleware/warehouseScope';
 
 interface PurchaseOrderInput {
   supplierId: string;
@@ -192,6 +193,7 @@ export const PurchaseOrderService = {
 
   async receive(orgId: string, userId: string, id: string, data: GoodsReceiptInput) {
     return withInventoryTransaction(async (tx) => {
+      await assertWarehouseAccess(tx, orgId, userId, data.warehouseId);
       const duplicate = await tx.goodsReceipt.findUnique({
         where: {
           organizationId_idempotencyKey: {

@@ -1,8 +1,11 @@
-# ADR-002: Product Catalog Module
+# Historical ADR-002: Product Catalog Module
+
+> **Superseded by:** ADR-0001, ADR-0003, ADR-0005, and ADR-0007. This decision
+> describes workspace/SQLite assumptions from the earlier product direction.
 
 **Status:** Accepted  
 **Date:** 2026-07-19  
-**Author:** Engineering Team  
+**Author:** Engineering Team
 
 ## Problem
 
@@ -20,17 +23,23 @@ The first inventory feature to implement is the Product Catalog — products wit
 ## Alternatives
 
 ### Alternative A: Single Product table with JSONB variants
+
 Store variants as JSON array on the product record.
+
 - **Pros:** Simple schema, no joins for product list
 - **Cons:** Can't query/filter by variant attributes, no FK constraints, harder to track stock per variant, Prisma JSON support limitations with SQLite
 
 ### Alternative B: Product + Variants as separate tables (chosen)
+
 Normalized: `Product` (shared attributes) → `ProductVariant` (SKU, options, price, image).
+
 - **Pros:** Proper FK constraints, queryable variant attributes, stock per variant, Prisma-native
 - **Cons:** More joins, more complex CRUD
 
 ### Alternative C: EAV (Entity-Attribute-Value)
+
 Custom attributes stored as key-value pairs.
+
 - **Pros:** Maximum flexibility, no schema changes for new attributes
 - **Cons:** Query nightmare, no type safety, complex validation, poor Prisma support
 
@@ -39,9 +48,11 @@ Custom attributes stored as key-value pairs.
 **Alternative B**: Normalized Product + Variant tables.
 
 ### Category hierarchy
+
 Use `parentId` self-referencing FK (adjacency list). Sufficient for SMB needs. Materialized path or nested sets can be added later if deep hierarchy queries become a bottleneck.
 
 ### SKU
+
 - Unique per workspace
 - Auto-generated from pattern or manually entered
 - Validation enforced at service layer
@@ -49,6 +60,7 @@ Use `parentId` self-referencing FK (adjacency list). Sufficient for SMB needs. M
 ## Schema Design
 
 ### Category
+
 ```
 id          String  @id @default(uuid())
 workspaceId String  (FK → Workspace)
@@ -66,6 +78,7 @@ updatedAt   DateTime
 ```
 
 ### Product
+
 ```
 id          String  @id @default(uuid())
 workspaceId String  (FK → Workspace)
@@ -80,6 +93,7 @@ updatedAt   DateTime
 ```
 
 ### ProductVariant
+
 ```
 id             String  @id @default(uuid())
 productId      String  (FK → Product, onDelete: Cascade)
@@ -98,6 +112,7 @@ updatedAt      DateTime
 ```
 
 ### ProductSupplier
+
 ```
 id          String  @id @default(uuid())
 productId   String  (FK → Product)

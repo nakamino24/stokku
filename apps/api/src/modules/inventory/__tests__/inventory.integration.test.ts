@@ -4,10 +4,17 @@ import { PurchaseOrderService } from '../../purchase-orders/purchase-orders.serv
 import { ProductService } from '../../products/products.service';
 import { SalesOrderService } from '../../sales-orders/sales-orders.service';
 import { StockService } from '../../stock/stock.service';
+import { ShipmentService } from '../../shipment/shipment.service';
+import { PickingService } from '../../picking/picking.service';
+import { PackingService } from '../../packing/packing.service';
 
 jest.setTimeout(45_000);
 
-describe('WMS inventory core (PostgreSQL)', () => {
+const databaseUrl = process.env.DATABASE_URL
+const databaseCredentialsAreConfigured = databaseUrl?.includes('stokku:stokku@') ?? false
+const describeIfDatabase = databaseCredentialsAreConfigured ? describe : describe.skip
+
+describeIfDatabase('WMS inventory core (PostgreSQL)', () => {
   const suffix = randomUUID();
   const ids: Record<string, string> = {};
 
@@ -25,6 +32,13 @@ describe('WMS inventory core (PostgreSQL)', () => {
       },
     });
     await prisma.organization.update({ where: { id: organization.id }, data: { ownerId: user.id } });
+    await prisma.organizationMember.create({
+      data: {
+        organizationId: organization.id,
+        userId: user.id,
+        role: 'OWNER',
+      },
+    });
     const [supplier, customer, warehouseA, warehouseB, product] = await Promise.all([
       prisma.supplier.create({
         data: { organizationId: organization.id, name: 'Test Supplier' },
@@ -175,6 +189,55 @@ describe('WMS inventory core (PostgreSQL)', () => {
     })).toBeGreaterThan(0);
   });
 
+  test('shipment command persists tracking data and is retry-safe', async () => {
+    const order = await SalesOrderService.create(ids.organization, ids.user, {
+      customerId: ids.customer,
+      items: [{ productId: ids.product, quantity: '2.5', unitPrice: '4.25' }],
+    });
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'CONFIRMED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'ALLOCATED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'PICKING');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'PICKED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'PACKED');
+
+    const input = {
+      trackingNumber: `TRACK-${suffix}`,
+      carrier: 'UPS',
+      idempotencyKey: `shipment-${suffix}`,
+    };
+    const first = await ShipmentService.post(ids.organization, ids.user, order.id, input);
+    const duplicate = await ShipmentService.post(ids.organization, ids.user, order.id, input);
+
+    expect(first.id).toBe(duplicate.id);
+    expect(first.trackingNumber).toBe(input.trackingNumber);
+    expect(await prisma.shipment.count({ where: { salesOrderId: order.id } })).toBe(1);
+    expect(await prisma.salesOrder.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: 'SHIPPED' });
+    expect(await prisma.stockMovement.count({ where: { sourceDocumentId: order.id, type: 'SHIPMENT' } })).toBeGreaterThan(0);
+  });
+
+  test('picking and packing persist operator state before shipment', async () => {
+    const order = await SalesOrderService.create(ids.organization, ids.user, {
+      customerId: ids.customer,
+      items: [{ productId: ids.product, quantity: '1.5', unitPrice: '4.25' }],
+    });
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'CONFIRMED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'ALLOCATED');
+    await SalesOrderService.updateStatus(ids.organization, ids.user, order.id, 'PICKING');
+    const allocation = await prisma.inventoryAllocation.findFirstOrThrow({ where: { salesOrderId: order.id } });
+
+    const claimedPick = await PickingService.claim(ids.organization, ids.user, allocation.id);
+    expect(claimedPick.status).toBe('CLAIMED');
+    const picked = await PickingService.confirm(ids.organization, ids.user, allocation.id, { pickedQty: '1.5' });
+    expect(picked.status).toBe('PICKED');
+
+    const claimedPack = await PackingService.claim(ids.organization, ids.user, allocation.id);
+    expect(claimedPack.status).toBe('CLAIMED');
+    const packed = await PackingService.complete(ids.organization, ids.user, allocation.id, { packedQty: '1.5', cartons: 1 });
+    expect(packed.status).toBe('PACKED');
+    expect(await prisma.inventoryAllocation.findUniqueOrThrow({ where: { id: allocation.id } })).toMatchObject({ executionStatus: 'PACKED' });
+    expect(await prisma.salesOrder.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: 'PACKED' });
+  });
+
   test('two concurrent orders cannot both allocate the last unit', async () => {
     const product = await prisma.product.create({
       data: { organizationId: ids.organization, name: 'Last Unit Product', sku: `LAST-${suffix}` },
@@ -261,6 +324,14 @@ describe('WMS inventory core (PostgreSQL)', () => {
       where: { id: adjustment.id },
       data: { reason: 'mutation must fail' },
     })).rejects.toThrow();
+    const auditLog = await prisma.auditLog.findFirstOrThrow({
+      where: { organizationId: ids.organization, userId: ids.user },
+    });
+    await expect(prisma.auditLog.update({
+      where: { id: auditLog.id },
+      data: { action: 'mutation must fail' },
+    })).rejects.toThrow();
+    await expect(prisma.auditLog.delete({ where: { id: auditLog.id } })).rejects.toThrow();
     await expect(StockService.adjust(ids.organization, ids.user, {
       productId: product.id,
       warehouseId: ids.warehouseA,
@@ -268,7 +339,7 @@ describe('WMS inventory core (PostgreSQL)', () => {
       reasonCode: 'COUNT_VARIANCE',
       idempotencyKey: `negative-block-${suffix}`,
     })).rejects.toThrow('cannot be negative');
-    expect((await StockService.reconcile(ids.organization)).reconciled).toBe(true);
+    expect((await StockService.reconcile(ids.organization, ids.user)).reconciled).toBe(true);
   });
 
   test('cross-organization inventory references are rejected without mutation', async () => {

@@ -25,7 +25,7 @@ function CategoryRow({ node, depth = 0, onRefresh }: { node: any; depth?: number
           <button onClick={() => setExpanded(!expanded)} className="text-gray-400">
             {expanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
           </button>
-        ) : <span className="w-[14px]" />}
+        ) : <span className="w-3.5" />}
         <FiFolder size={15} color={node.color || '#6366f1'} />
         {editing ? (
           <input value={name} onChange={e => setName(e.target.value)}

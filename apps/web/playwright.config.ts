@@ -2,7 +2,6 @@ import { defineConfig, devices } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
 const API_ORIGIN = process.env.API_ORIGIN || 'http://127.0.0.1:3001';
-
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -35,6 +34,7 @@ export default defineConfig({
         DATABASE_URL: process.env.DATABASE_URL || 'postgresql://stokku:stokku@127.0.0.1:5432/stokku-test',
         DIRECT_URL: process.env.DIRECT_URL || 'postgresql://stokku:stokku@127.0.0.1:5432/stokku-test',
         ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET || 'local-playwright-access-token-secret-at-least-32-characters',
+        EMAIL_OUTBOX_ENCRYPTION_KEY: process.env.EMAIL_OUTBOX_ENCRYPTION_KEY || 'local-playwright-outbox-encryption-key-at-least-32',
       },
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

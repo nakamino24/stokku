@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { loginAsDemoUser, createCustomerViaUi } from './helpers';
+import { loginAsTestUser, createCustomerViaUi } from './helpers';
 
 const stockRows = (page: Page) =>
   page.locator('[data-testid^="stock-row-SOL-200-SOL-200-5L-"]');
@@ -14,9 +14,9 @@ async function readOnHand(stockRow: ReturnType<Page['getByTestId']>) {
   return readOnHandFromText(await stockRow.innerText());
 }
 
-test.describe('Sales order workflow', () => {
+test.describe('Sales order workflow @mutates-inventory', () => {
   test('confirms without allocation, fulfills, ships once, and closes', async ({ page }) => {
-    await loginAsDemoUser(page);
+    await loginAsTestUser(page);
     await page.goto('/stock');
     await expect(stockRows(page).first()).toBeVisible();
     const stockSnapshots = await stockRows(page).evaluateAll(rows => rows.map(row => ({

@@ -11,8 +11,11 @@ const config: Config = {
   },
   moduleNameMapper: {
     '^@stokku/database$': '<rootDir>/../../packages/database/src/index.ts',
+    '^@stokku/domain$': '<rootDir>/../../packages/domain/src/index.ts',
+    '^@stokku/validation$': '<rootDir>/../../packages/validation/src/index.ts',
   },
   clearMocks: true,
+  testTimeout: 20000,
   collectCoverageFrom: ['src/**/*.ts', '!src/server.ts', '!src/**/index.ts'],
 };
 

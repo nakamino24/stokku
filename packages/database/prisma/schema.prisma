@@ -76,9 +76,31 @@ enum InventoryAllocationStatus {
   FULFILLED
 }
 
+enum FulfillmentTaskStatus {
+  READY
+  CLAIMED
+  PICKED
+  PACKING_CLAIMED
+  PACKED
+  SHORTED
+  EXCEPTION
+}
+
+enum PutawayTaskStatus {
+  READY
+  CLAIMED
+  COMPLETED
+  EXCEPTION
+}
+
 enum GoodsReceiptStatus {
   POSTED
   REVERSED
+}
+
+enum ShipmentStatus {
+  POSTED
+  VOIDED
 }
 
 enum AdjustmentReasonCode {
@@ -99,6 +121,7 @@ enum DocumentType {
   GOODS_RECEIPT
   STOCK_TRANSFER
   STOCK_ADJUSTMENT
+  RECONCILIATION
 }
 
 enum ProductStatus {
@@ -139,6 +162,9 @@ model Organization {
   documentSequences DocumentSequence[]
   purchaseOrders PurchaseOrder[]
   salesOrders    SalesOrder[]
+  shipments      Shipment[]
+  returnRequests ReturnRequest[]
+  reconciliationRuns ReconciliationRun[]
   users           User[]
   roles           Role[]
   auditLogs       AuditLog[]
@@ -173,10 +199,20 @@ model User {
   receivedGoodsReceipts GoodsReceipt[] @relation("goodsReceiptReceivedBy")
   createdPurchaseOrders PurchaseOrder[] @relation("poCreatedBy")
   createdSalesOrders    SalesOrder[]    @relation("soCreatedBy")
+  postedShipments       Shipment[]      @relation("shipmentPostedBy")
+  claimedAllocations    InventoryAllocation[] @relation("allocationClaimedBy")
+  claimedPutawayLines    GoodsReceiptLine[] @relation("putawayClaimedBy")
+  approvedReturns       ReturnRequest[] @relation("returnApprovedBy")
+  completedReturns      ReturnRequest[] @relation("returnCompletedBy")
+  createdReturns        ReturnRequest[] @relation("returnCreatedBy")
+  startedReconciliations ReconciliationRun[] @relation("reconciliationStartedBy")
+  completedReconciliations ReconciliationRun[] @relation("reconciliationCompletedBy")
+  resolvedDiscrepancies ReconciliationDiscrepancy[] @relation("discrepancyResolvedBy")
   auditLogs             AuditLog[]
   organizationMembers   OrganizationMember[]
   refreshSessions       RefreshSession[]
   passwordResetTokens   PasswordResetToken[]
+  emailOutboxMessages   EmailOutboxMessage[]
 
   @@index([organizationId])
   @@index([email])
@@ -193,9 +229,26 @@ model OrganizationMember {
   assignedRole   Role?            @relation(fields: [roleId], references: [id])
   joinedAt       DateTime         @default(now())
 
+  warehouseAssignments OrganizationMemberWarehouse[] @relation("MemberWarehouseAssignments")
+
   @@unique([organizationId, userId])
+  @@unique([organizationId, id])
   @@index([userId])
   @@index([roleId])
+}
+
+model OrganizationMemberWarehouse {
+  id                   String             @id @default(uuid())
+  organizationId       String
+  organizationMemberId String
+  warehouseId          String
+  organizationMember   OrganizationMember @relation("MemberWarehouseAssignments", fields: [organizationId, organizationMemberId], references: [organizationId, id], onDelete: Cascade)
+  warehouse            Warehouse          @relation("WarehouseMemberAssignments", fields: [organizationId, warehouseId], references: [organizationId, id], onDelete: Cascade)
+  assignedAt           DateTime           @default(now())
+
+  @@unique([organizationId, organizationMemberId, warehouseId])
+  @@index([organizationId, warehouseId])
+  @@index([organizationMemberId])
 }
 
 model Role {
@@ -403,8 +456,12 @@ model Warehouse {
   fromMovements StockMovement[] @relation("fromWarehouse")
   toMovements   StockMovement[] @relation("toWarehouse")
   goodsReceipts GoodsReceipt[]
+  returnRequests ReturnRequest[]
+  reconciliationRuns ReconciliationRun[]
+  memberAssignments OrganizationMemberWarehouse[] @relation("WarehouseMemberAssignments")
 
   @@unique([organizationId, code])
+  @@unique([organizationId, id])
   @@index([organizationId])
 }
 
@@ -436,6 +493,7 @@ model WarehouseBin {
 
   stockLevels StockLevel[]
   goodsReceipts GoodsReceipt[]
+  putawayDestinations GoodsReceiptLine[] @relation("putawayDestination")
 
   @@unique([zoneId, code])
   @@index([zoneId])
@@ -468,6 +526,7 @@ model StockLevel {
 
   movements StockMovement[]
   allocations InventoryAllocation[]
+  discrepancies ReconciliationDiscrepancy[]
 
   // Nullable identity parts are enforced with a PostgreSQL NULLS NOT DISTINCT
   // unique index in the migration. Prisma cannot express that index yet.
@@ -613,6 +672,8 @@ model SalesOrder {
 
   items SalesOrderItem[]
   allocations InventoryAllocation[]
+  shipment Shipment?
+  returnRequests ReturnRequest[]
 
   @@unique([organizationId, soNumber])
   @@index([organizationId])
@@ -651,9 +712,19 @@ model InventoryAllocation {
   stockLevel       StockLevel                @relation(fields: [stockLevelId], references: [id])
   quantity         Decimal                   @db.Decimal(18, 6)
   status           InventoryAllocationStatus @default(ACTIVE)
+  executionStatus  FulfillmentTaskStatus    @default(READY)
   idempotencyKey   String
   createdById      String
   createdBy        User                      @relation("allocationCreatedBy", fields: [createdById], references: [id])
+  claimedById      String?
+  claimedBy        User?                     @relation("allocationClaimedBy", fields: [claimedById], references: [id])
+  claimedAt        DateTime?
+  pickedQty        Decimal?
+  packedQty        Decimal?
+  shortQty         Decimal?
+  exceptionReason  String?
+  pickedAt         DateTime?
+  packedAt         DateTime?
   createdAt        DateTime                  @default(now())
   releasedAt       DateTime?
   fulfilledAt      DateTime?
@@ -661,8 +732,32 @@ model InventoryAllocation {
   @@unique([organizationId, idempotencyKey])
   @@unique([salesOrderItemId, stockLevelId])
   @@index([organizationId, status])
+  @@index([organizationId, executionStatus])
   @@index([salesOrderId])
   @@index([stockLevelId])
+}
+
+model Shipment {
+  id              String         @id @default(uuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salesOrderId    String         @unique
+  salesOrder      SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  status          ShipmentStatus @default(POSTED)
+  trackingNumber  String
+  carrier         String
+  note            String?
+  idempotencyKey  String
+  postedById      String
+  postedBy        User           @relation("shipmentPostedBy", fields: [postedById], references: [id])
+  postedAt        DateTime       @default(now())
+  voidedAt        DateTime?
+  voidReason      String?
+
+  @@unique([organizationId, salesOrderId])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status])
+  @@index([salesOrderId])
 }
 
 model GoodsReceipt {
@@ -709,11 +804,20 @@ model GoodsReceiptLine {
   receivedQty         Decimal           @db.Decimal(18, 6)
   acceptedQty         Decimal           @db.Decimal(18, 6)
   rejectedQty         Decimal           @default(0) @db.Decimal(18, 6)
+  taskStatus          PutawayTaskStatus  @default(READY)
+  claimedById         String?
+  claimedBy           User?             @relation("putawayClaimedBy", fields: [claimedById], references: [id])
+  claimedAt           DateTime?
+  destinationBinId    String?
+  destinationBin      WarehouseBin?      @relation("putawayDestination", fields: [destinationBinId], references: [id])
+  completedAt         DateTime?
+  exceptionReason     String?
   createdAt           DateTime          @default(now())
 
   @@unique([goodsReceiptId, purchaseOrderItemId])
   @@index([purchaseOrderItemId])
   @@index([productId])
+  @@index([taskStatus])
 }
 
 model DocumentSequence {
@@ -779,4 +883,147 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+enum EmailOutboxStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+model EmailOutboxMessage {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind          String
+  toEmail       String
+  subject       String
+  payloadCiphertext String
+  payloadIv     String
+  payloadTag    String
+  status        EmailOutboxStatus @default(PENDING)
+  attempts      Int              @default(0)
+  availableAt   DateTime         @default(now())
+  lockedAt      DateTime?
+  lockedBy      String?
+  sentAt        DateTime?
+  lastError     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([status, availableAt])
+  @@index([userId, kind, createdAt])
+}
+
+enum ReturnDisposition {
+  RESTOCK
+  DISCARD
+  REWORK
+}
+
+enum ReturnStatus {
+  OPEN
+  APPROVED
+  COMPLETED
+  REJECTED
+}
+
+model ReturnRequest {
+  id              String          @id @default(uuid())
+  organizationId  String
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salesOrderId    String
+  salesOrder      SalesOrder      @relation(fields: [salesOrderId], references: [id])
+  warehouseId     String
+  warehouse       Warehouse       @relation(fields: [warehouseId], references: [id])
+  reason          String
+  quantity        Decimal         @db.Decimal(18, 6)
+  note            String?
+  status          ReturnStatus    @default(OPEN)
+  disposition     ReturnDisposition?
+  approvedById    String?
+  approvedBy      User?           @relation("returnApprovedBy", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  completedById   String?
+  completedBy     User?           @relation("returnCompletedBy", fields: [completedById], references: [id])
+  completedAt     DateTime?
+  createdById     String
+  createdBy       User            @relation("returnCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([organizationId])
+  @@index([salesOrderId])
+  @@index([warehouseId])
+  @@index([status])
+}
+
+enum ReconciliationRunStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DiscrepancyResolution {
+  ADJUST_STORED
+  ADJUST_LEDGER
+  INVESTIGATE
+  IGNORE
+}
+
+model ReconciliationRun {
+  id              String                @id @default(uuid())
+  organizationId  String
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouseId     String?
+  warehouse       Warehouse?            @relation(fields: [warehouseId], references: [id])
+  status          ReconciliationRunStatus @default(PENDING)
+  startedById     String
+  startedBy       User                  @relation("reconciliationStartedBy", fields: [startedById], references: [id])
+  completedById   String?
+  completedBy     User?                 @relation("reconciliationCompletedBy", fields: [completedById], references: [id])
+  startedAt       DateTime              @default(now())
+  completedAt     DateTime?
+  totalBalances   Int                   @default(0)
+  discrepancyCount Int                 @default(0)
+  resolvedCount   Int                   @default(0)
+  note            String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  discrepancies   ReconciliationDiscrepancy[]
+
+  @@index([organizationId])
+  @@index([warehouseId])
+  @@index([status])
+}
+
+model ReconciliationDiscrepancy {
+  id              String               @id @default(uuid())
+  runId           String
+  run             ReconciliationRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  balanceId       String
+  balance         StockLevel           @relation(fields: [balanceId], references: [id])
+  storedOnHand    Decimal              @db.Decimal(18, 6)
+  storedAllocated Decimal              @db.Decimal(18, 6)
+  storedHold      Decimal              @db.Decimal(18, 6)
+  storedAvailable Decimal              @db.Decimal(18, 6)
+  ledgerOnHand    Decimal              @db.Decimal(18, 6)
+  ledgerAllocated Decimal              @db.Decimal(18, 6)
+  ledgerHold      Decimal              @db.Decimal(18, 6)
+  ledgerAvailable Decimal              @db.Decimal(18, 6)
+  resolution      DiscrepancyResolution?
+  resolvedById    String?
+  resolvedBy      User?                @relation("discrepancyResolvedBy", fields: [resolvedById], references: [id])
+  resolvedAt      DateTime?
+  adjustmentId    String?
+  note            String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([runId])
+  @@index([balanceId])
+  @@index([resolution])
 }

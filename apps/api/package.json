@@ -17,18 +17,20 @@
   },
   "dependencies": {
     "@stokku/database": "workspace:*",
+    "@stokku/domain": "workspace:*",
+    "@stokku/validation": "workspace:*",
+    "argon2": "^0.43.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^4.18.0",
+    "express": "^4.21.2",
     "express-rate-limit": "^8.6.0",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "zod": "^3.0.0"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^3.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",

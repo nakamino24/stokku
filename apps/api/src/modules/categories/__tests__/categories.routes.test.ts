@@ -3,6 +3,8 @@ import { createTestApp, mockAuthMiddleware } from '../../../__tests__/helpers';
 
 jest.mock('@stokku/database', () => ({
   prisma: {
+    organizationMember: { findFirst: jest.fn().mockResolvedValue({ role: 'ADMIN', assignedRole: null }) },
+    role: { findFirst: jest.fn().mockResolvedValue({ id: 'admin-role' }) },
     category: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
     product: { count: jest.fn() },
     auditLog: { create: jest.fn() },

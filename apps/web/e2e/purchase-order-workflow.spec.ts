@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { loginAsDemoUser, createSupplierViaUi } from './helpers';
+import { loginAsTestUser, createSupplierViaUi } from './helpers';
 
 const stockRow = (page: Page) =>
   page.getByTestId('stock-row-SOL-200-SOL-200-5L-WH-MAIN');
@@ -11,9 +11,9 @@ async function readOnHand(page: Page) {
   return Number(match[1]);
 }
 
-test.describe('Purchase order workflow', () => {
+test.describe('Purchase order workflow @mutates-inventory', () => {
   test('creates, approves, sends, partially receives, and posts accepted stock', async ({ page }) => {
-    await loginAsDemoUser(page);
+    await loginAsTestUser(page);
     const beforeStock = await (async () => {
       await page.goto('/stock');
       await expect(stockRow(page)).toBeVisible();

@@ -3,7 +3,7 @@ import { generateTestUser, registerUserViaApi, loginViaUi } from './helpers';
 
 test.describe('Authentication', () => {
   test.describe('Registration', () => {
-    test('should register a new user and redirect to dashboard', async ({ page }) => {
+    test('should register a new user and require email verification', async ({ page }) => {
       const user = generateTestUser();
 
       await page.goto('/auth/register');
@@ -15,8 +15,8 @@ test.describe('Authentication', () => {
       await page.fill('#password', user.password);
       await page.click('button[type="submit"]');
 
-      await page.waitForURL('/', { timeout: 15000 });
-      await expect(page.locator('h1')).toHaveText('Dashboard');
+      await page.waitForURL(/\/auth\/login\?registered=1/, { timeout: 15000 });
+      await expect(page.locator('text=Account created. Check your email')).toBeVisible();
     });
 
     test('should show validation errors for empty fields', async ({ page }) => {

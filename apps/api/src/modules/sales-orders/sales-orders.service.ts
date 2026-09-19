@@ -4,6 +4,11 @@ import { InventoryAllocationService } from '../inventory/inventory-allocation.se
 import { DecimalInput, withInventoryTransaction } from '../inventory/inventory-posting.service';
 import { AppError } from '../../utils/errors';
 import { parsePagination, paginatedResult } from '../../utils/pagination';
+import {
+  assertHasWarehouseScope,
+  assertWarehouseAccessToAll,
+  getWarehouseScope,
+} from '../../middleware/warehouseScope';
 
 interface SalesOrderInput {
   customerId: string;
@@ -38,6 +43,30 @@ const soInclude = {
   createdBy: { select: { name: true } },
 } satisfies Prisma.SalesOrderInclude;
 
+function scopedSalesOrderInclude(warehouseIds?: string[]): Prisma.SalesOrderInclude {
+  return {
+    ...soInclude,
+    items: {
+      include: {
+        product: { select: { name: true, sku: true, unit: true } },
+        variant: { select: { name: true, sku: true } },
+        allocations: {
+          where: warehouseIds ? { stockLevel: { warehouseId: { in: warehouseIds } } } : undefined,
+          include: {
+            stockLevel: {
+              include: {
+                warehouse: { select: { id: true, name: true, code: true } },
+                bin: { select: { id: true, code: true } },
+              },
+            },
+          },
+        },
+      },
+    },
+    createdBy: { select: { name: true } },
+  } satisfies Prisma.SalesOrderInclude;
+}
+
 const soListSelect = {
   id: true,
   soNumber: true,
@@ -49,9 +78,17 @@ const soListSelect = {
 } satisfies Prisma.SalesOrderSelect;
 
 export const SalesOrderService = {
-  async list(orgId: string, query: Record<string, unknown>) {
+  async list(orgId: string, userId: string, query: Record<string, unknown>) {
     const pagination = parsePagination(query);
+    const scope = await getWarehouseScope(prisma, orgId, userId);
     const where: Prisma.SalesOrderWhereInput = { organizationId: orgId };
+    if (!scope.global) {
+      where.items = {
+        some: {
+          allocations: { some: { stockLevel: { warehouseId: { in: scope.warehouseIds } } } },
+        },
+      };
+    }
     if (typeof query.status === 'string') where.status = query.status as SalesOrderStatus;
     if (typeof query.customerId === 'string') where.customerId = query.customerId;
 
@@ -68,10 +105,17 @@ export const SalesOrderService = {
     return paginatedResult(data, total, pagination);
   },
 
-  async getById(orgId: string, id: string) {
+  async getById(orgId: string, userId: string, id: string) {
+    const scope = await getWarehouseScope(prisma, orgId, userId);
     const order = await prisma.salesOrder.findFirst({
-      where: { id, organizationId: orgId },
-      include: soInclude,
+      where: {
+        id,
+        organizationId: orgId,
+        ...(!scope.global
+          ? { items: { some: { allocations: { some: { stockLevel: { warehouseId: { in: scope.warehouseIds } } } } } } }
+          : {}),
+      },
+      include: scopedSalesOrderInclude(scope.global ? undefined : scope.warehouseIds),
     });
     if (!order) throw AppError.notFound('Sales order not found');
     return order;
@@ -148,8 +192,15 @@ export const SalesOrderService = {
 
   async updateStatus(orgId: string, userId: string, id: string, requestedStatus: SalesOrderStatus) {
     return withInventoryTransaction(async (tx) => {
+      const scope = await getWarehouseScope(tx, orgId, userId);
       const order = await tx.salesOrder.findFirst({
-        where: { id, organizationId: orgId },
+        where: {
+          id,
+          organizationId: orgId,
+          ...(!scope.global
+            ? { items: { some: { allocations: { some: { stockLevel: { warehouseId: { in: scope.warehouseIds } } } } } } }
+            : {}),
+        },
         include: soInclude,
       });
       if (!order) throw AppError.notFound('Sales order not found');
@@ -181,11 +232,13 @@ export const SalesOrderService = {
       if (requestedStatus === 'CONFIRMED') {
         timestamps.confirmedAt = order.confirmedAt ?? now;
       } else if (requestedStatus === 'ALLOCATED') {
+        const allocationScope = await assertHasWarehouseScope(tx, orgId, userId);
         await InventoryAllocationService.allocateSalesOrder(tx, {
           organizationId: orgId,
           userId,
           salesOrderId: id,
           reference: order.soNumber,
+          warehouseIds: allocationScope.global ? undefined : allocationScope.warehouseIds,
         });
         timestamps.allocatedAt = now;
       } else if (requestedStatus === 'CANCELLED') {
@@ -193,6 +246,16 @@ export const SalesOrderService = {
           where: { salesOrderId: id, organizationId: orgId, status: 'ACTIVE' },
         });
         if (activeAllocations > 0) {
+          const allocations = await tx.inventoryAllocation.findMany({
+            where: { salesOrderId: id, organizationId: orgId, status: 'ACTIVE' },
+            select: { stockLevel: { select: { warehouseId: true } } },
+          });
+          await assertWarehouseAccessToAll(
+            tx,
+            orgId,
+            userId,
+            allocations.map(({ stockLevel }) => stockLevel.warehouseId),
+          );
           await InventoryAllocationService.releaseSalesOrder(tx, {
             organizationId: orgId,
             userId,
@@ -202,6 +265,16 @@ export const SalesOrderService = {
         }
         timestamps.cancelledAt = now;
       } else if (requestedStatus === 'SHIPPED') {
+        const allocations = await tx.inventoryAllocation.findMany({
+          where: { salesOrderId: id, organizationId: orgId, status: 'ACTIVE' },
+          select: { stockLevel: { select: { warehouseId: true } } },
+        });
+        await assertWarehouseAccessToAll(
+          tx,
+          orgId,
+          userId,
+          allocations.map(({ stockLevel }) => stockLevel.warehouseId),
+        );
         await InventoryAllocationService.shipSalesOrder(tx, {
           organizationId: orgId,
           userId,

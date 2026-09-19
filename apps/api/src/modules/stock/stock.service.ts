@@ -8,6 +8,12 @@ import {
 import { validateInventoryIdentity } from '../inventory/inventory-validation';
 import { AppError } from '../../utils/errors';
 import { parsePagination, paginatedResult } from '../../utils/pagination';
+import {
+  assertWarehouseAccess,
+  assertWarehouseAccessToAll,
+  getWarehouseScope,
+  warehouseIdFilter,
+} from '../../middleware/warehouseScope';
 
 interface AdjustmentInput {
   productId: string;
@@ -34,14 +40,21 @@ interface TransferInput {
 }
 
 export const StockService = {
-  async list(orgId: string, query: Record<string, unknown>) {
+  async list(orgId: string, userId: string, query: Record<string, unknown>) {
     const pagination = parsePagination(query);
-    const where: Prisma.StockLevelWhereInput = { organizationId: orgId };
+    const scope = await getWarehouseScope(prisma, orgId, userId);
+    const where: Prisma.StockLevelWhereInput = {
+      organizationId: orgId,
+      ...(warehouseIdFilter(scope) ? { warehouseId: warehouseIdFilter(scope) } : {}),
+    };
 
     if (typeof query.search === 'string' && query.search) {
       where.product = { name: { contains: query.search, mode: 'insensitive' } };
     }
-    if (typeof query.warehouseId === 'string' && query.warehouseId) where.warehouseId = query.warehouseId;
+    if (typeof query.warehouseId === 'string' && query.warehouseId) {
+      await assertWarehouseAccess(prisma, orgId, userId, query.warehouseId);
+      where.warehouseId = query.warehouseId;
+    }
     if (typeof query.productId === 'string' && query.productId) where.productId = query.productId;
     if (query.lowStock === 'true') {
       where.reorderPoint = { not: null };
@@ -66,11 +79,18 @@ export const StockService = {
     return paginatedResult(data, total, pagination);
   },
 
-  async getMovements(orgId: string, query: Record<string, unknown>) {
+  async getMovements(orgId: string, userId: string, query: Record<string, unknown>) {
     const pagination = parsePagination(query);
-    const where: Prisma.StockMovementWhereInput = { organizationId: orgId };
+    const scope = await getWarehouseScope(prisma, orgId, userId);
+    const where: Prisma.StockMovementWhereInput = {
+      organizationId: orgId,
+      ...(warehouseIdFilter(scope) ? { warehouseId: warehouseIdFilter(scope) } : {}),
+    };
     if (typeof query.productId === 'string') where.productId = query.productId;
-    if (typeof query.warehouseId === 'string') where.warehouseId = query.warehouseId;
+    if (typeof query.warehouseId === 'string') {
+      await assertWarehouseAccess(prisma, orgId, userId, query.warehouseId);
+      where.warehouseId = query.warehouseId;
+    }
     if (typeof query.type === 'string') where.type = query.type as Prisma.EnumStockMovementTypeFilter['equals'];
 
     const [data, total] = await Promise.all([
@@ -115,6 +135,7 @@ export const StockService = {
         warehouseId: data.warehouseId,
         binId: data.binId,
       });
+      await assertWarehouseAccess(tx, orgId, userId, data.warehouseId);
       const balance = await InventoryPostingService.ensureBalance(tx, {
         organizationId: orgId,
         warehouseId: data.warehouseId,
@@ -148,9 +169,11 @@ export const StockService = {
     return withInventoryTransaction(async (tx) => {
       const movement = await tx.stockMovement.findFirst({
         where: { id: movementId, organizationId: orgId },
-        select: { type: true },
+        select: { type: true, warehouseId: true },
       });
       if (!movement) throw AppError.notFound('Inventory transaction not found');
+      if (!movement.warehouseId) throw AppError.conflict('Inventory transaction has no warehouse scope');
+      await assertWarehouseAccess(tx, orgId, userId, movement.warehouseId);
       if (movement.type !== 'ADJUSTMENT') {
         throw AppError.badRequest('Only stock adjustments can be reversed through this endpoint');
       }
@@ -172,6 +195,7 @@ export const StockService = {
     if (requested.lessThanOrEqualTo(0)) throw AppError.badRequest('Transfer quantity must be positive');
 
     return withInventoryTransaction(async (tx) => {
+      await assertWarehouseAccessToAll(tx, orgId, userId, [data.fromWarehouseId, data.toWarehouseId]);
       const correlationId = `TRANSFER:${data.idempotencyKey}`;
       const duplicate = await tx.stockMovement.findFirst({
         where: { organizationId: orgId, correlationId },
@@ -265,7 +289,8 @@ export const StockService = {
     });
   },
 
-  reconcile(orgId: string) {
-    return InventoryPostingService.reconcile(orgId);
+  async reconcile(orgId: string, userId: string) {
+    const scope = await getWarehouseScope(prisma, orgId, userId);
+    return InventoryPostingService.reconcile(orgId, scope.global ? undefined : scope.warehouseIds);
   },
 };

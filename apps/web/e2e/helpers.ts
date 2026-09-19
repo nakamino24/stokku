@@ -35,8 +35,13 @@ export async function registerUserViaApi(user: TestUser) {
   return { response: res, context: ctx };
 }
 
-export async function loginAsDemoUser(page: Page) {
-  await loginViaUi(page, 'demo@stokku.app', 'password123');
+export async function loginAsTestUser(page: Page) {
+  const email = process.env.E2E_USER_EMAIL;
+  const password = process.env.E2E_USER_PASSWORD;
+  if (!email || !password) {
+    throw new Error('E2E_USER_EMAIL and E2E_USER_PASSWORD are required for authenticated E2E tests');
+  }
+  await loginViaUi(page, email, password);
 }
 
 export async function createSupplierViaUi(page: Page, name: string) {
@@ -64,12 +69,6 @@ export async function loginViaUi(page: Page, email: string, password: string) {
   await page.fill('#password', password);
   await page.click('button[type="submit"]');
   await page.waitForURL('/', { timeout: 15000 });
-}
-
-export async function getAccessToken(page: Page): Promise<string | null> {
-  return page.evaluate(() => {
-    return localStorage.getItem('accessToken') || localStorage.getItem('token');
-  });
 }
 
 export async function cleanupUser(context: any, userId: string) {

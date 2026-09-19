@@ -304,10 +304,11 @@ export const InventoryPostingService = {
     return result.movement;
   },
 
-  async reconcile(organizationId: string) {
+  async reconcile(organizationId: string, warehouseIds?: string[]) {
+    const warehouseFilter = warehouseIds === undefined ? {} : { warehouseId: { in: warehouseIds } };
     const [balances, movements] = await Promise.all([
-      prisma.stockLevel.findMany({ where: { organizationId } }),
-      prisma.stockMovement.findMany({ where: { organizationId }, orderBy: { createdAt: 'asc' } }),
+      prisma.stockLevel.findMany({ where: { organizationId, ...warehouseFilter } }),
+      prisma.stockMovement.findMany({ where: { organizationId, ...warehouseFilter }, orderBy: { createdAt: 'asc' } }),
     ]);
 
     const ledger = new Map<string, { onHand: Prisma.Decimal; allocated: Prisma.Decimal; hold: Prisma.Decimal }>();

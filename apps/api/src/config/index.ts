@@ -21,6 +21,16 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   appUrl,
 
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY || '',
+    from: process.env.EMAIL_FROM || '',
+  },
+
+  emailOutbox: {
+    intervalMs: parseInt(process.env.EMAIL_OUTBOX_INTERVAL_MS || '5000', 10),
+    encryptionKey: process.env.EMAIL_OUTBOX_ENCRYPTION_KEY || '',
+  },
+
   jwt: {
     accessSecret: process.env.ACCESS_TOKEN_SECRET || '',
     accessExpiresIn: 900,
@@ -30,6 +40,7 @@ export const config = {
     refreshSessionTtlSeconds: 7 * 24 * 60 * 60,
     refreshReuseGraceSeconds: 10,
     passwordResetTtlMinutes: 60,
+    emailVerificationTtlMinutes: 24 * 60,
   },
 
   cors: {
@@ -46,4 +57,25 @@ export const config = {
   },
 
   logLevel: process.env.LOG_LEVEL || 'info',
+
+  features: {
+    enableTargetAuthorizationAdapter: process.env.ENABLE_TARGET_AUTHORIZATION_ADAPTER === 'true',
+  },
 };
+
+export function validateConfig(): void {
+  const required = [
+    { key: 'ACCESS_TOKEN_SECRET', value: config.jwt.accessSecret },
+    { key: 'EMAIL_OUTBOX_ENCRYPTION_KEY', value: config.emailOutbox.encryptionKey },
+  ];
+
+  for (const { key, value } of required) {
+    if (!value || value.length < 32) {
+      throw new Error(`${key} must be set and at least 32 characters`);
+    }
+  }
+
+  if (config.nodeEnv === 'production' && config.features.enableTargetAuthorizationAdapter) {
+    console.warn('[WARN] ENABLE_TARGET_AUTHORIZATION_ADAPTER is enabled in production environment');
+  }
+}

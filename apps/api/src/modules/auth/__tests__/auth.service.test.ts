@@ -1,7 +1,7 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { AuthService } from '../auth.service';
-import { AppError } from '../../../utils/errors';
+import jwt from 'jsonwebtoken'
+import argon2 from 'argon2'
+import { AuthService } from '../auth.service'
+import { AppError } from '../../../utils/errors'
 
 jest.mock('@stokku/database', () => ({
   prisma: {
@@ -29,19 +29,22 @@ jest.mock('@stokku/database', () => ({
       findUnique: jest.fn(),
       updateMany: jest.fn(),
     },
+    emailOutboxMessage: { create: jest.fn() },
     $transaction: jest.fn(),
   },
-}));
+}))
 
-jest.mock('bcryptjs', () => ({
-  hash: jest.fn(),
-  compare: jest.fn(),
-}));
+jest.mock('argon2', () => ({
+  argon2id: 2,
+  hash: jest.fn().mockResolvedValue('$argon2id$v=19$m=65536,t=3,p=1$hash'),
+  verify: jest.fn().mockResolvedValue(true),
+  needsRehash: jest.fn().mockReturnValue(false),
+}))
 
 jest.mock('jsonwebtoken', () => ({
   sign: jest.fn(),
   verify: jest.fn(),
-}));
+}))
 
 jest.mock('../../../config', () => ({
   config: {
@@ -55,19 +58,23 @@ jest.mock('../../../config', () => ({
       refreshSessionTtlSeconds: 604800,
       refreshReuseGraceSeconds: 2,
       passwordResetTtlMinutes: 30,
+      emailVerificationTtlMinutes: 1440,
     },
+    emailOutbox: { encryptionKey: 'test-outbox-encryption-key' },
     appUrl: 'http://localhost:3000',
   },
-}));
+}))
 
-const { prisma } = jest.requireMock('@stokku/database');
+const { prisma } = jest.requireMock('@stokku/database')
 
 function mockTransaction<T>(fn: (tx: any) => T): Promise<T> {
   const tx = {
     user: {
       create: prisma.user.create,
+      findFirst: prisma.user.findFirst,
       findUnique: prisma.user.findUnique,
       update: prisma.user.update,
+      updateMany: prisma.user.updateMany,
     },
     organization: { create: prisma.organization.create, update: prisma.organization.update },
     auditLog: { create: prisma.auditLog.create },
@@ -81,152 +88,236 @@ function mockTransaction<T>(fn: (tx: any) => T): Promise<T> {
       create: prisma.passwordResetToken.create,
       updateMany: prisma.passwordResetToken.updateMany,
     },
-  };
-  return Promise.resolve(fn(tx));
+    emailOutboxMessage: { create: prisma.emailOutboxMessage.create },
+  }
+  return Promise.resolve(fn(tx as any))
 }
 
 describe('AuthService', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (prisma.$transaction as jest.Mock).mockImplementation(mockTransaction);
-    (prisma.role.create as jest.Mock).mockImplementation(({ data }: { data: { slug: string } }) => ({
-      id: `role-${data.slug}`,
-      slug: data.slug,
-    }));
-    (prisma.refreshSession.create as jest.Mock).mockResolvedValue({ id: 'session-1' });
-    (prisma.refreshSession.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-  });
+    jest.clearAllMocks()
+    ;(prisma.$transaction as jest.Mock).mockImplementation(mockTransaction)
+    ;(prisma.role.create as jest.Mock).mockImplementation(
+      ({ data }: { data: { slug: string } }) => ({
+        id: `role-${data.slug}`,
+        slug: data.slug,
+      })
+    )
+    ;(prisma.refreshSession.create as jest.Mock).mockResolvedValue({ id: 'session-1' })
+    ;(prisma.refreshSession.updateMany as jest.Mock).mockResolvedValue({ count: 1 })
+  })
 
   describe('register', () => {
-    const regData = { email: 'new@user.com', password: 'Password1', name: 'New User', organizationName: 'New Org' };
+    const regData = {
+      email: 'new@user.com',
+      password: 'Password1',
+      name: 'New User',
+      organizationName: 'New Org',
+    }
 
     it('should create organization and user', async () => {
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
-      (prisma.organization.create as jest.Mock).mockResolvedValue({ id: 'org-1', slug: 'new-org-123' });
-      (prisma.user.create as jest.Mock).mockResolvedValue({ id: 'user-1', email: regData.email, name: regData.name, role: 'OWNER' });
-      (jwt.sign as jest.Mock).mockReturnValue('token');
+      (prisma.organization.create as jest.Mock).mockResolvedValue({
+        id: 'org-1',
+        slug: 'new-org-123',
+      })
+      ;(prisma.user.create as jest.Mock).mockResolvedValue({
+        id: 'user-1',
+        email: regData.email,
+        name: regData.name,
+        role: 'OWNER',
+      })
+      ;(jwt.sign as jest.Mock).mockReturnValue('token')
 
-      const result = await AuthService.register(regData);
+      const result = await AuthService.register(regData)
 
-      expect(prisma.organization.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ name: 'New Org' }),
-      }));
-      expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ email: regData.email, role: 'OWNER' }),
-      }));
-      expect(result).toHaveProperty('accessToken');
-      expect(result).toHaveProperty('refreshToken');
-      expect(result.user.email).toBe(regData.email);
-    });
+      expect(prisma.organization.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ name: 'New Org' }),
+        })
+      )
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            email: regData.email,
+            role: 'OWNER',
+            emailVerified: false,
+          }),
+        })
+      )
+      expect(result).toHaveProperty('verificationRequired', true)
+      expect(result.user).toHaveProperty('emailVerified', false)
+    expect(result.user.email).toBe(regData.email)
+      expect(prisma.emailOutboxMessage.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          kind: 'EMAIL_VERIFICATION',
+          toEmail: regData.email,
+        }),
+      })
+    })
 
     it('should throw conflict if email exists', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'existing' });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'existing' })
 
-      await expect(AuthService.register(regData)).rejects.toThrow(AppError);
-      await expect(AuthService.register(regData)).rejects.toMatchObject({ statusCode: 409 });
-    });
-  });
+      await expect(AuthService.register(regData)).rejects.toThrow(AppError)
+      await expect(AuthService.register(regData)).rejects.toMatchObject({ statusCode: 409 })
+    })
+  })
 
   describe('login', () => {
     const mockUser = {
-      id: 'user-1', email: 'demo@test.com', name: 'Demo', passwordHash: 'hash',
-      isActive: true, role: 'ADMIN', organizationId: 'org-1',
+      id: 'user-1',
+      email: 'demo@test.com',
+      name: 'Demo',
+      passwordHash: 'hash',
+      isActive: true,
+      role: 'ADMIN',
+      organizationId: 'org-1',
       organization: { id: 'org-1', slug: 'demo-org' },
-    };
+      emailVerified: true,
+    }
 
     it('should return tokens on successful login', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-      (jwt.sign as jest.Mock).mockReturnValue('token');
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser)
+      ;(argon2.verify as jest.Mock).mockResolvedValue(true)
+      ;(jwt.sign as jest.Mock).mockReturnValue('token')
 
-      const result = await AuthService.login('demo@test.com', 'password');
+      const result = await AuthService.login('demo@test.com', 'password')
 
-      expect(result).toHaveProperty('accessToken');
-      expect(result).toHaveProperty('refreshToken');
-      expect(result.user.email).toBe('demo@test.com');
-      expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: 'user-1' },
-        data: expect.objectContaining({ lastLoginAt: expect.any(Date) }),
-      }));
-    });
+      expect(result).toHaveProperty('accessToken')
+      expect(result).toHaveProperty('refreshToken')
+      expect(result.user.email).toBe('demo@test.com')
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-1' },
+          data: expect.objectContaining({ lastLoginAt: expect.any(Date) }),
+        })
+      )
+    })
 
     it('should throw unauthorized for wrong password', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser)
+      ;(argon2.verify as jest.Mock).mockResolvedValue(false)
 
-      await expect(AuthService.login('demo@test.com', 'wrong')).rejects.toMatchObject({ statusCode: 401 });
-    });
+      await expect(AuthService.login('demo@test.com', 'wrong')).rejects.toMatchObject({
+        statusCode: 401,
+      })
+    })
 
     it('should throw unauthorized for non-existent user', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null)
 
-      await expect(AuthService.login('nobody@test.com', 'password')).rejects.toMatchObject({ statusCode: 401 });
-    });
+      await expect(AuthService.login('nobody@test.com', 'password')).rejects.toMatchObject({
+        statusCode: 401,
+      })
+    })
 
     it('should throw forbidden for inactive user', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ ...mockUser, isActive: false });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ ...mockUser, isActive: false })
 
-      await expect(AuthService.login('demo@test.com', 'password')).rejects.toMatchObject({ statusCode: 403 });
-    });
-  });
+      await expect(AuthService.login('demo@test.com', 'password')).rejects.toMatchObject({
+        statusCode: 403,
+      })
+    })
+  })
 
   describe('refresh', () => {
     it('should return new tokens for valid refresh token', async () => {
       (prisma.refreshSession.findUnique as jest.Mock).mockResolvedValue({
-        id: 'session-1', userId: 'user-1', familyId: 'family-1', revokedAt: null,
+        id: 'session-1',
+        userId: 'user-1',
+        familyId: 'family-1',
+        revokedAt: null,
         expiresAt: new Date(Date.now() + 60_000),
         user: {
-          id: 'user-1', email: 'demo@test.com', name: 'Demo', isActive: true,
-          role: 'ADMIN', organizationId: 'org-1', organization: { slug: 'demo-org' },
+          id: 'user-1',
+          email: 'demo@test.com',
+          name: 'Demo',
+          isActive: true,
+          role: 'ADMIN',
+          organizationId: 'org-1',
+          organization: { slug: 'demo-org' },
         },
-      });
-      (jwt.sign as jest.Mock).mockReturnValue('new-token');
+      })
+      ;(jwt.sign as jest.Mock).mockReturnValue('new-token')
 
-      const result = await AuthService.refresh('valid-refresh-token');
-      expect(result).toHaveProperty('accessToken');
-      expect(result).toHaveProperty('refreshToken');
-    });
+      const result = await AuthService.refresh('valid-refresh-token')
+      expect(result).toHaveProperty('accessToken')
+      expect(result).toHaveProperty('refreshToken')
+    })
+
+    it('revokes the refresh family when a rotated credential is replayed', async () => {
+      (prisma.refreshSession.findUnique as jest.Mock).mockResolvedValue({
+        id: 'session-1',
+        userId: 'user-1',
+        familyId: 'family-1',
+        revokedAt: new Date(Date.now() - 30_000),
+        revokedReason: 'ROTATED',
+        expiresAt: new Date(Date.now() + 60_000),
+        user: { isActive: true, emailVerified: true },
+      })
+      ;(prisma.refreshSession.updateMany as jest.Mock).mockResolvedValue({ count: 2 })
+
+      await expect(AuthService.refresh('replayed-refresh-token')).rejects.toMatchObject({ statusCode: 401 })
+      expect(prisma.refreshSession.updateMany).toHaveBeenCalledWith({
+        where: { familyId: 'family-1', revokedAt: null },
+        data: expect.objectContaining({ revokedReason: 'REUSE_DETECTED' }),
+      })
+    })
 
     it('should throw unauthorized for invalid token', async () => {
-      (prisma.refreshSession.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.refreshSession.findUnique as jest.Mock).mockResolvedValue(null)
 
-      await expect(AuthService.refresh('invalid')).rejects.toMatchObject({ statusCode: 401 });
-    });
-  });
+      await expect(AuthService.refresh('invalid')).rejects.toMatchObject({ statusCode: 401 })
+    })
+  })
 
   describe('changePassword', () => {
     it('should update password when current password matches', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'user-1', passwordHash: 'old-hash' });
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-      (bcrypt.hash as jest.Mock).mockResolvedValue('new-hash');
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'user-1',
+        passwordHash: 'old-hash',
+      })
+      ;(argon2.verify as jest.Mock).mockResolvedValue(true)
+      ;(argon2.hash as jest.Mock).mockResolvedValue('new-hash')
 
-      const result = await AuthService.changePassword('user-1', 'current', 'new-password');
-      expect(result.message).toContain('updated');
+      const result = await AuthService.changePassword('user-1', 'current', 'new-password')
+      expect(result.message).toContain('updated')
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
         data: { passwordHash: 'new-hash' },
-      });
-    });
+      })
+    })
 
     it('should throw unauthorized for wrong current password', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'user-1', passwordHash: 'old-hash' });
-      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'user-1',
+        passwordHash: 'old-hash',
+      })
+      ;(argon2.verify as jest.Mock).mockResolvedValue(false)
 
-      await expect(AuthService.changePassword('user-1', 'wrong', 'new')).rejects.toMatchObject({ statusCode: 401 });
-    });
-  });
+      await expect(AuthService.changePassword('user-1', 'wrong', 'new')).rejects.toMatchObject({
+        statusCode: 401,
+      })
+    })
+  })
 
   describe('getProfile', () => {
     it('should return user profile without passwordHash', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({
-        id: 'user-1', email: 'demo@test.com', name: 'Demo', role: 'ADMIN',
-        phone: '123', avatarUrl: null, organization: { id: 'org-1', name: 'Org', slug: 'org', currency: 'USD', timezone: 'UTC' },
-      });
+        id: 'user-1',
+        email: 'demo@test.com',
+        name: 'Demo',
+        role: 'ADMIN',
+        phone: '123',
+        avatarUrl: null,
+        organization: { id: 'org-1', name: 'Org', slug: 'org', currency: 'USD', timezone: 'UTC' },
+      })
 
-      const profile = await AuthService.getProfile('user-1');
-      expect(profile).not.toHaveProperty('passwordHash');
-      expect(profile.email).toBe('demo@test.com');
-      expect(profile.organization.name).toBe('Org');
-    });
-  });
-});
+      const profile = await AuthService.getProfile('user-1')
+      expect(profile).not.toHaveProperty('passwordHash')
+      expect(profile.email).toBe('demo@test.com')
+      expect(profile.organization.name).toBe('Org')
+    })
+  })
+})

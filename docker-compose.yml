@@ -1,24 +1,6 @@
 name: stokku
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: stokku-db
-    environment:
-      POSTGRES_USER: stokku
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stokku}
-      POSTGRES_DB: stokku
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stokku"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
   api:
     build:
       context: .
@@ -31,13 +13,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://stokku:${POSTGRES_PASSWORD:-stokku}@postgres:5432/stokku
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DIRECT_URL: ${DIRECT_URL:?DIRECT_URL is required}
+      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
+      EMAIL_OUTBOX_ENCRYPTION_KEY: ${EMAIL_OUTBOX_ENCRYPTION_KEY:?EMAIL_OUTBOX_ENCRYPTION_KEY is required}
+      RESEND_API_KEY: ${RESEND_API_KEY:?RESEND_API_KEY is required}
+      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+      APP_URL: ${APP_URL:?APP_URL is required}
     restart: unless-stopped
 
   web:
@@ -52,10 +35,6 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3002
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
-    depends_on:
-      - api
+      API_ORIGIN: ${API_ORIGIN:?API_ORIGIN is required}
+    depends_on: [api]
     restart: unless-stopped
-
-volumes:
-  postgres_data:

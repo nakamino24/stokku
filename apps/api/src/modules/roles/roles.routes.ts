@@ -17,19 +17,19 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 router.post('/', validate({ body: createRoleSchema }), asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user;
-  const result = await RolesService.create(user.organizationId, req.body);
+   const result = await RolesService.create(user.organizationId, user.id, req.body);
   res.status(201).json(result);
 }));
 
 router.put('/:id', validate({ body: updateRoleSchema }), asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user;
-  const result = await RolesService.update(user.organizationId, req.params.id, req.body);
+   const result = await RolesService.update(user.organizationId, user.id, req.params.id, req.body);
   res.json(result);
 }));
 
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user;
-  await RolesService.delete(user.organizationId, req.params.id);
+   await RolesService.delete(user.organizationId, user.id, req.params.id);
   res.status(204).send();
 }));
 

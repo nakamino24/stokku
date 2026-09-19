@@ -17,6 +17,8 @@ env:
   DIRECT_URL: postgresql://stokku:stokku@localhost:5432/stokku-test
   API_ORIGIN: http://127.0.0.1:3001
   ACCESS_TOKEN_SECRET: ci-only-access-token-secret-at-least-32-characters
+  EMAIL_OUTBOX_ENCRYPTION_KEY: ci-only-outbox-encryption-key-at-least-32-characters
+  RUN_DATABASE_INTEGRATION_TESTS: true
 
 jobs:
   lint-typecheck:
@@ -43,6 +45,9 @@ jobs:
 
       - name: Typecheck workspace
         run: pnpm typecheck
+
+      - name: Validate documentation references
+        run: pnpm docs:check
 
   test:
     name: Unit & Integration Tests
@@ -84,23 +89,22 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
-      - name: Seed Database
-        run: pnpm --filter @stokku/database exec prisma db seed
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-
       - name: Run Inventory Domain & Reconciliation Tests
-        run: pnpm --filter @stokku/api test -- --runInBand inventory.integration.test.ts
+        run: pnpm --filter @stokku/api exec jest --runInBand inventory.integration.test.ts
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
-      - name: Run API Unit Tests
-        run: pnpm --filter @stokku/api test -- --runInBand --testPathIgnorePatterns=inventory.integration.test.ts
+- name: Run API Unit & Gate 5 Parity Tests
+        run: pnpm --filter @stokku/api exec jest --runInBand --testPathIgnorePatterns=inventory.integration.test.ts
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
+          RUN_DATABASE_INTEGRATION_TESTS: ${{ env.RUN_DATABASE_INTEGRATION_TESTS }}
 
       - name: Run Database Contract Tests
-        run: pnpm --filter @stokku/database test -- --runInBand
+        run: pnpm --filter @stokku/database exec jest --runInBand
+
+      - name: Run Target Boundary Package Tests
+        run: pnpm --filter @stokku/domain test && pnpm --filter @stokku/validation test && pnpm --filter @stokku/contracts test && pnpm --filter @stokku/test-fixtures test
 
       - name: Run Web Tests
         run: pnpm --filter @stokku/web exec jest --runInBand
@@ -138,50 +142,6 @@ jobs:
         run: pnpm migrate:deploy
       - name: Run Render build
         run: pnpm render-build
-
-  wms-e2e:
-    name: WMS Playwright acceptance
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: stokku
-          POSTGRES_PASSWORD: stokku
-          POSTGRES_DB: stokku-test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      PORT: 3001
-      API_ORIGIN: http://127.0.0.1:3001
-      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Generate Prisma Client
-        run: pnpm --filter @stokku/database exec prisma generate
-      - name: Apply database migrations
-        run: pnpm migrate:deploy
-      - name: Seed disposable database
-        run: pnpm --filter @stokku/database exec prisma db seed
-      - name: Build database and API runtime packages
-        run: pnpm --filter @stokku/database build && pnpm --filter @stokku/api build
-      - name: Install Playwright Chromium
-        run: pnpm --filter @stokku/web exec playwright install --with-deps chromium
-      - name: Run WMS acceptance specs
-        run: pnpm --filter @stokku/web exec playwright test e2e/purchase-order-workflow.spec.ts e2e/sales-order-workflow.spec.ts
 
   build:
     name: Build

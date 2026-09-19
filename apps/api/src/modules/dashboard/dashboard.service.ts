@@ -1,4 +1,5 @@
 import { PurchaseOrderStatus, prisma } from '@stokku/database';
+import { getWarehouseScope, warehouseIdFilter } from '../../middleware/warehouseScope';
 
 const PENDING_PURCHASE_STATUSES: PurchaseOrderStatus[] = [
   'PENDING_APPROVAL',
@@ -8,27 +9,42 @@ const PENDING_PURCHASE_STATUSES: PurchaseOrderStatus[] = [
 ];
 
 export const DashboardService = {
-  async getSummary(orgId: string) {
+  async getSummary(orgId: string, userId: string) {
+    const scope = await getWarehouseScope(prisma, orgId, userId);
+    const stockScope = warehouseIdFilter(scope);
     const [productCount, supplierCount, customerCount, warehouseCount, totalStock, pendingPO, pendingSO] = await Promise.all([
       prisma.product.count({ where: { organizationId: orgId, isActive: true } }),
       prisma.supplier.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
       prisma.customer.count({ where: { organizationId: orgId, isActive: true } }),
-      prisma.warehouse.count({ where: { organizationId: orgId, isActive: true } }),
-      prisma.stockLevel.aggregate({ where: { organizationId: orgId }, _sum: { onHand: true } }),
-      prisma.purchaseOrder.count({ where: { organizationId: orgId, status: { in: PENDING_PURCHASE_STATUSES } } }),
-      prisma.salesOrder.count({ where: { organizationId: orgId, status: { in: ['CONFIRMED', 'ALLOCATED', 'PICKING', 'PICKED', 'PACKED'] } } }),
+      prisma.warehouse.count({ where: { organizationId: orgId, isActive: true, ...(stockScope ? { id: stockScope } : {}) } }),
+      prisma.stockLevel.aggregate({ where: { organizationId: orgId, ...(stockScope ? { warehouseId: stockScope } : {}) }, _sum: { onHand: true } }),
+      prisma.purchaseOrder.count({
+        where: {
+          organizationId: orgId,
+          status: { in: PENDING_PURCHASE_STATUSES },
+          ...(stockScope ? { goodsReceipts: { some: { warehouseId: stockScope } } } : {}),
+        },
+      }),
+      prisma.salesOrder.count({
+        where: {
+          organizationId: orgId,
+          status: { in: ['CONFIRMED', 'ALLOCATED', 'PICKING', 'PICKED', 'PACKED'] },
+          ...(stockScope ? { items: { some: { allocations: { some: { stockLevel: { warehouseId: stockScope } } } } } } : {}),
+        },
+      }),
     ]);
 
     const lowStockCount = await prisma.stockLevel.count({
       where: {
         organizationId: orgId,
+        ...(stockScope ? { warehouseId: stockScope } : {}),
         reorderPoint: { not: null },
         available: { lte: prisma.stockLevel.fields.reorderPoint },
       },
     });
 
     const recentMovements = await prisma.stockMovement.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: orgId, ...(stockScope ? { warehouseId: stockScope } : {}) },
       orderBy: { createdAt: 'desc' },
       take: 10,
       include: {
@@ -53,10 +69,13 @@ export const DashboardService = {
     };
   },
 
-  async getLowStockAlerts(orgId: string) {
+  async getLowStockAlerts(orgId: string, userId: string) {
+    const scope = await getWarehouseScope(prisma, orgId, userId);
+    const stockScope = warehouseIdFilter(scope);
     return prisma.stockLevel.findMany({
       where: {
         organizationId: orgId,
+        ...(stockScope ? { warehouseId: stockScope } : {}),
         reorderPoint: { not: null },
         available: { lte: prisma.stockLevel.fields.reorderPoint },
       },

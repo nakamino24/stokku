@@ -1,38 +1,32 @@
-# Stokku Configuration Guide
+# Reference Runtime: Stokku Configuration
 
-## Environment Setup
+> This document describes configuration for the active Render, Vercel, Neon, Express,
+> and Prisma reference runtime. Target deployment requirements are defined in
+> `docs/Deployment.md`; do not infer target architecture from this runbook.
 
-To configure Stokku, create a `.env.local` file in the root directory with the following content:
+Stokku has one data path: the browser calls the API, and the API connects to
+PostgreSQL. The browser never receives database credentials.
 
-```bash
-# Stokku Configuration
-# Set to 'false' to use sample data mode (no authentication required)
-# Set to 'true' to use Supabase database (authentication required)
-NEXT_PUBLIC_USE_SUPABASE=false
+## API Environment
 
-# Supabase Configuration (only needed if NEXT_PUBLIC_USE_SUPABASE=true)
-# NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-# NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
+Configure these values in the Render API service:
 
-## Admin Access
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Neon pooled PostgreSQL URL for API runtime |
+| `DIRECT_URL` | Neon direct PostgreSQL URL for Prisma migrations |
+| `ACCESS_TOKEN_SECRET` | Random signing secret, at least 32 characters |
+| `EMAIL_OUTBOX_ENCRYPTION_KEY` | Random encryption secret, at least 32 characters |
+| `RESEND_API_KEY` | Resend API credential for verification and reset email |
+| `EMAIL_FROM` | Verified Resend sender address |
+| `CORS_ORIGINS` | Exact Vercel production origin |
+| `APP_URL` | Exact Vercel production origin |
 
-### Sample Data Mode (NEXT_PUBLIC_USE_SUPABASE=false)
-- Admin page is accessible without authentication
-- Uses sample data for all operations
-- Perfect for testing and development
+## Web Environment
 
-### Supabase Mode (NEXT_PUBLIC_USE_SUPABASE=true)
-- Requires user authentication
-- Requires user profile with role='admin'
-- Uses real Supabase database
+Configure only `API_ORIGIN` in the Vercel web project. It must be the HTTPS Render
+API URL without a trailing slash. The Vercel rewrite keeps browser requests on
+same-origin `/api/v1` paths so refresh cookies remain first-party.
 
-## Quick Setup for Admin Access
-
-For immediate admin access, create `.env.local` with:
-
-```bash
-NEXT_PUBLIC_USE_SUPABASE=false
-```
-
-This enables sample data mode where the admin page works without authentication.
+Do not configure database URLs, signing keys, provider tokens, or Supabase values
+in Vercel or in any `NEXT_PUBLIC_*` variable.
