@@ -100,6 +100,11 @@ The following are confirmed in the reference implementation:
   ADMIN retain organization-wide authority and other users are filtered to explicit
   assignments. Horizontal isolation still requires disposable PostgreSQL integration
   coverage before release.
+- The preceding warehouse-scope statement describes the active reference runtime,
+  not the target inbound-command policy. ADR-0027 requires independently revocable
+  memberships, finite permission grants, no implicit owner/admin warehouse scope,
+  and remediation of wildcard and migration-backfilled grants before Gate 7B
+  mutations can be enabled.
 - User deactivation now uses an explicit safe response selection and requires
   higher-authority actor membership.
 - Helmet CSP is enabled with an explicit API policy.
