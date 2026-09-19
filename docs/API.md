@@ -86,7 +86,7 @@ scope. Exports are asynchronous for large result sets.
 | Products        | `GET /products`, `GET /products/:id`                                 | `POST /products`, `PATCH /products/:id`, `POST /products/:id/archive`                                                                |
 | Warehouses      | `GET /warehouses`, `GET /warehouses/:id`, `GET /warehouses/:id/bins` | `POST /warehouses`, `POST /warehouses/:id/zones`, `POST /bins`                                                                       |
 | Inventory       | `GET /inventory/balances`, `GET /inventory/ledger`                   | `POST /inventory/adjustments`, `POST /inventory/movements/:id/reverse`, `POST /inventory/reconcile`                                  |
-| Purchase orders | `GET /purchase-orders`, `GET /purchase-orders/:id`                   | `POST /purchase-orders`, `POST /purchase-orders/:id/submit`, `POST /purchase-orders/:id/approve`, `POST /purchase-orders/:id/cancel` |
+| Purchase orders | `GET /purchase-orders`, `GET /purchase-orders/:id`                   | `POST /purchase-orders`, `POST /purchase-orders/:id/submit`, `POST /purchase-orders/:id/approve`, `POST /purchase-orders/:id/cancel`; proposed: `POST /purchase-orders/:id/planned-warehouse` |
 | Receipts        | `GET /receipts`, `GET /receipts/:id`                                 | `POST /receipts`, `POST /receipts/:id/post`, `POST /receipts/:id/reverse`                                                            |
 | Putaway         | `GET /putaway/tasks`                                                 | `POST /putaway/tasks/:id/claim`, `POST /putaway/tasks/:id/complete`, `POST /putaway/tasks/:id/exception`                             |
 | Sales orders    | `GET /sales-orders`, `GET /sales-orders/:id`                         | `POST /sales-orders`, `POST /sales-orders/:id/confirm`, `POST /sales-orders/:id/cancel`                                              |
@@ -113,3 +113,40 @@ The implementation will generate OpenAPI 3.1 from the contracts. Contract tests
 must verify status codes, error codes, pagination, authorization, and sensitive
 field exclusion. Deprecations use `Deprecation` and `Sunset` headers and a migration
 note. GraphQL is not part of the pilot API.
+
+## 8. Proposed Inbound Commands
+
+`POST /api/v1/purchase-orders/:id/planned-warehouse` is a proposed target command
+for authoring the persisted receiving destination. It is not implemented in the
+reference runtime and is not an approved public endpoint. The command must require
+target purchasing authority, an active same-organization warehouse, target
+membership authority, idempotency, compare-and-set concurrency protection, and
+transactional audit. A destination is required before commercial submission;
+amendments after submission invalidate the approval and return the purchase order to
+`DRAFT`. See
+`docs/adr/0026-purchase-order-planned-warehouse-authoring.md`.
+
+Target receiving-draft routes and permissions are also proposed only. They require
+the finite permission, membership lifecycle, explicit warehouse-scope, and legacy
+grant-transition rules in
+`docs/adr/0027-target-authorization-policy-for-inbound-commands.md` before an API
+contract or route can be approved. Their persistence support is proposed in
+`docs/adr/0028-receiving-draft-persistence-implementation.md`, which authorizes no
+table, migration, route, or stock effect. Their exact internal named-command
+contract is proposed in
+`docs/adr/0029-receiving-draft-api-contract.md`, which authorizes no route,
+handler, schema code, or production endpoint. Execution order, file scope, and
+rollback are proposed in
+`docs/adr/0030-receiving-draft-implementation-slice.md`, which authorizes no
+implementation. The exact allowlist delta and error-code ownership are proposed
+in `docs/adr/0031-inbound-permission-allowlist-and-error-alignment.md`, which
+authorizes no domain edit or grant. The scoped security and production-impact
+review plan is proposed in
+`docs/adr/0032-draft-slice-security-and-production-review.md`, which authorizes
+and executes no review. The future posting and ledger boundary is planned in
+`docs/adr/0033-receiving-posting-and-ledger-boundary.md`, which authorizes no
+schema, route, grant, or production change. The two-phase approval rule is
+proposed in `docs/adr/0034-gate-7b-implementation-approval-gate.md`, which
+grants no approval itself. Phased canonical promotion is planned in
+`docs/adr/0035-canonical-promotion-plan-for-drafts.md`, which authorizes no
+path, code, or production change.

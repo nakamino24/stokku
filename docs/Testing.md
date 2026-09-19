@@ -51,3 +51,12 @@ inventory packages have risk-based coverage thresholds higher than ordinary UI c
 
 Tests use isolated databases and deterministic fixtures. Production credentials and
 production databases are forbidden in test processes.
+
+
+Required reporting terms:
+
+- `Passed`: test executed and assertions passed.
+- `Skipped because local disposable DB unavailable`: test did not execute because local DB configuration was absent.
+- `Skipped because safety guard rejected non-local DB`: test did not execute because the requested database target was unsafe.
+- `Pre-existing environment limitation`: skip existed outside the current gate and is not a product acceptance signal.
+- `Not Gate 6 evidence`: skipped suites are excluded from Gate 6 pass/fail evidence.

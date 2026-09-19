@@ -19,6 +19,16 @@
 | 0015 | Append-only ledger and audit controls    | Reference hardening |
 | 0016 | Target architecture transition           | Accepted for review |
 | 0017 | Authorization adapter parity probe       | Approved — implemented under feature flag |
+| 0026 | Purchase-order planned warehouse authoring | Proposed for Gate 7B prerequisite review; implementation not approved |
+| 0027 | Target authorization policy for inbound commands | Proposed for Gate 7B prerequisite review; implementation not approved |
+| 0028 | Receiving draft persistence implementation proposal | Proposed for review; implementation not approved |
+| 0029 | Receiving draft API contract proposal | Proposed for review; implementation not approved |
+| 0030 | Receiving draft implementation slice and rollout plan | Proposed for review; implementation not approved |
+| 0031 | Inbound permission allowlist and error-code alignment | Proposed for review; implementation not approved |
+| 0032 | Draft slice security and production-impact review plan | Proposed for review; implementation not approved |
+| 0033 | Receiving posting and ledger boundary planning | Proposed for review; implementation not approved |
+| 0034 | Gate 7B implementation approval gate | Proposed for review; implementation not approved |
+| 0035 | Canonical promotion plan for receiving drafts | Proposed for review; implementation not approved |
 
 "Accepted for review" means the proposal is the working baseline. "Reference
 hardening" records a control applied to the active implementation; it does not

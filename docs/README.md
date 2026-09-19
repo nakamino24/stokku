@@ -29,6 +29,16 @@ but links and tooling should remain portable to case-sensitive CI environments.
 | Repository transition and dependency rules | `repository-structure.md` and ADR-0016             | Approved direction |
 | Gate 4 target identity/authorization boundary | `gate-4-identity-authorization-boundaries.md`    | Implemented, inactive |
 | Gate 5 authorization adapter parity probe | `gate-5-authorization-adapter-parity.md`    | Implemented, feature-flagged |
+| Purchase-order planned warehouse authoring | ADR-0026 | Proposed Gate 7B prerequisite; implementation not approved |
+| Target authorization policy for inbound commands | ADR-0027 | Proposed Gate 7B prerequisite; implementation not approved |
+| Receiving draft persistence implementation proposal | ADR-0028 | Proposed for review; implementation not approved |
+| Receiving draft API contract proposal | ADR-0029 | Proposed for review; implementation not approved |
+| Receiving draft implementation slice and rollout plan | ADR-0030 | Proposed for review; implementation not approved |
+| Inbound permission allowlist and error-code alignment | ADR-0031 | Proposed for review; implementation not approved |
+| Draft slice security and production-impact review plan | ADR-0032 | Proposed for review; implementation not approved |
+| Receiving posting and ledger boundary planning | ADR-0033 | Proposed for review; implementation not approved |
+| Gate 7B implementation approval gate | ADR-0034 | Proposed for review; implementation not approved |
+| Canonical promotion plan for receiving drafts | ADR-0035 | Proposed for review; implementation not approved |
 
 ## Phase 0 Gate
 

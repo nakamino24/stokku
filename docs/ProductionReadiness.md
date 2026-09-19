@@ -33,6 +33,24 @@
 - [x] Ledger and audit tables reject update/delete mutations through PostgreSQL triggers
 - [ ] Production runtime database role cannot bypass append-only triggers; migration role is separate
 - [ ] Balance projection reconciles exactly from ledger
+- [x] Purchase-order receiving warehouse ownership is approved and implemented before any warehouse-scoped receiving queue is enabled
+- [x] Purchase-order planned warehouse schema uses tenant-safe composite relation and verified migration before Gate 7A implementation
+- [x] Planned warehouse schema implementation ADR is approved before schema or migration coding starts
+- [x] Gate 7A receiving queue has separate implementation approval and verification for internal read-only scope
+- [ ] Gate 7A receiving queue remains disabled in production and has not received production enablement approval
+- [ ] Gate 7B receiving draft workflow has approved schema, idempotency, authorization, audit, and retry design before implementation
+- [ ] Gate 7B receiving draft exact schema and migration SQL are approved before implementation
+- [ ] Purchase-order planned-warehouse authoring contract, purchasing authority, approval invalidation, idempotency, concurrency, and audit behavior are approved and implemented before Gate 7B receiving drafts
+- [ ] Target inbound authorization policy provides independently revocable memberships, finite grants, explicit active warehouse scope, legacy-grant remediation, separation-of-duties, and transactional authorization-change audit before Gate 7B receiving drafts
+- [ ] Receiving draft persistence proposal provides composite tenant-safe FKs quantity and reason checks partial active-draft index idempotency claims and optimistic concurrency with empty plus existing-data migration verification before Gate 7B receiving drafts
+- [ ] Receiving draft API contract proposal provides strict schemas allowlisted DTOs explicit errors idempotency headers and internal pagination with contract verification before Gate 7B receiving drafts
+- [ ] Receiving draft slice plan provides entry criteria file scope transaction template test gates and rollback with focused plus full-suite verification before Gate 7B receiving drafts
+- [ ] Inbound allowlist and error alignment provides exact permission delta disjoint role bundles and owned 401 and OVER_RECEIPT codes with domain verification before Gate 7B receiving drafts
+- [ ] Draft slice security and production-impact review plan provides threat mapping checklist evidence and flag-off impact bar with sign-off before Gate 7B receiving drafts
+- [ ] Receiving posting and ledger boundary planning provides synchronous atomic posting warehouse equality creator-may-not-post and reversal-only correction design before any posting implementation
+- [ ] Gate 7B approval gate provides two-phase per-ADR sign-off evidence bundle and expiry with recorded status transitions before any draft implementation
+- [ ] Canonical promotion planning provides dual-serve deprecation keyset codes OpenAPI and telemetry design before any canonical draft route
+- [ ] Receiving workflow boundary, approval policy, idempotency storage, and retry behavior are approved before receiving mutation implementation
 - [ ] Receipt posting is exactly once and retry-safe
 - [ ] Putaway does not duplicate receipt quantity
 - [ ] Allocation reserves exact quantities under concurrency
